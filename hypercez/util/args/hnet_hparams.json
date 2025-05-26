@@ -1,0 +1,90 @@
+{
+  "un-chunked": {
+    "hnet_arch": {
+      "[32, 32]": [
+        16,
+        16
+      ],
+      "[200, 200]": [
+        50,
+        50
+      ],
+      "[256, 256]": [
+        128,
+        128
+      ],
+      "[200, 200, 200, 200]": [
+        256,
+        256
+      ],
+      "[200, 200, 200]": [
+        100,
+        100
+      ],
+      "[400, 400, 400]": [
+        100,
+        100
+      ],
+      "[100, 100]": [
+        40,
+        40
+      ]
+    },
+    "emb_size": 10,
+    "use_hyperfan_init": false,
+    "hnet_init": "xavier",
+    "std_normal_init": 0.02,
+    "std_normal_temb": 1,
+    "lr_hyper": 0.0001,
+    "grad_max_norm": 5,
+    "no_look_ahead": false,
+    "plastic_prev_tembs": false,
+    "backprop_dt": false,
+    "use_sgd_change": false,
+    "ewc_weight_importance": false,
+    "n_fisher": -1,
+    "si_eps": 1e-3,
+    "mlp_var_minmax": true
+  },
+  "chunked": {
+    "hnet_arch": {
+      "[256, 256]": [
+        5,
+        5
+      ],
+      "[200, 200, 200, 200]": [
+        25,
+        30
+      ],
+      "[200, 200]": [
+        20,
+        20
+      ]
+    },
+    "chunk_dim": {
+      "[256, 256]": 12000,
+      "[200, 200, 200, 200]": 4000,
+      "[200, 200]": 2000
+    },
+    "cemb_size": {
+      "[256, 256]": 40,
+      "[200, 200, 200, 200]": 20,
+      "[200, 200]": 20
+    },
+    "emb_size": 10,
+    "use_hyperfan_init": false,
+    "hnet_init": "xavier",
+    "std_normal_init": 0.02,
+    "std_normal_temb": 1,
+    "std_normal_cemb": 1,
+    "lr_hyper": 0.0001,
+    "grad_max_norm": 5,
+    "beta": 0.005,
+    "no_look_ahead": false,
+    "plastic_prev_tembs": true,
+    "backprop_dt": false,
+    "use_sgd_change": false,
+    "ewc_weight_importance": false,
+    "n_fisher": -1
+  }
+}

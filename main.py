@@ -1,5 +1,11 @@
+from hypercez.util.args.hparams import Hparams
+
+
 def main():
-    print("Hello World!")
+    params = Hparams("pusher")
+    params.add_hnet_hparams()
+    print(params.lr)
+
 
 if __name__ == "__main__":
     main()
