@@ -1,4 +1,4 @@
-from hypercez.util.args.hparams import Hparams
+from hypercez import Hparams
 
 
 def main():
