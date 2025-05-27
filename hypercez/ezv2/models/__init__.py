@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ...util.format import DiscreteSupport, symexp, normalize_state
+from hypercez.util.format import DiscreteSupport, symexp, normalize_state
 
 
 class EfficientZero(nn.Module):

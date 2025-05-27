@@ -1,6 +1,6 @@
 import numpy as np
 
-from agents.agent_base import Agent
+from hypercez.agents.agent_base import Agent
 
 
 class RandomAgent(Agent):
