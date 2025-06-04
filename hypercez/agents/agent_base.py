@@ -9,6 +9,7 @@ class Agent:
         self.control_dim = copy.deepcopy(hparams.control_dim)
         self.obs_shape = copy.deepcopy(hparams.state_dim)
         self.model = None
+        self.input_shape = None
         self.hparams = hparams
 
     def act(self, state):
