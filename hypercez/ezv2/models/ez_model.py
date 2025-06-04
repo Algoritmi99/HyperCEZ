@@ -20,7 +20,7 @@ class EfficientZero(nn.Module):
                  value_policy_model,
                  projection_model,
                  projection_head_model,
-                 config,
+                 hparams,
                  **kwargs,
                  ):
         """The basic models in EfficientZero
@@ -50,10 +50,10 @@ class EfficientZero(nn.Module):
         self.value_policy_model = value_policy_model
         self.projection_model = projection_model
         self.projection_head_model = projection_head_model
-        self.config = config
+        self.hparams = hparams
         self.state_norm = kwargs.get('state_norm')
         self.value_prefix = kwargs.get('value_prefix')
-        self.v_num = config.train.v_num
+        self.v_num = hparams.train["v_num"]
 
     def do_representation(self, obs):
         state = self.representation_model(obs)
@@ -102,12 +102,12 @@ class EfficientZero(nn.Module):
 
         if self.v_num > 2:
             values = values[np.random.choice(self.v_num, 2, replace=False)]
-        if self.config.model.value_support.type == 'symlog':
+        if self.hparams.model["value_support"]["type"] == 'symlog':
             output_values = symexp(values).min(0)[0]
         else:
-            output_values = DiscreteSupport.vector_to_scalar(values, **self.config.model.value_support).min(0)[0]
+            output_values = DiscreteSupport.vector_to_scalar(values, **self.hparams.model["value_support"]).min(0)[0]
 
-        if self.config.env.env in ['DMC', 'Gym']:
+        if self.hparams.env_type in ['DMC', 'Gym']:
             output_values = output_values.clip(0, 1e5)
 
         return state, output_values, policy
@@ -122,18 +122,18 @@ class EfficientZero(nn.Module):
 
         if self.v_num > 2:
             values = values[np.random.choice(self.v_num, 2, replace=False)]
-        if self.config.model.value_support.type == 'symlog':
+        if self.hparams.model["value_support"]["type"] == 'symlog':
             output_values = symexp(values).min(0)[0]
         else:
-            output_values = DiscreteSupport.vector_to_scalar(values, **self.config.model.value_support).min(0)[0]
+            output_values = DiscreteSupport.vector_to_scalar(values, **self.hparams.model["value_support"]).min(0)[0]
 
-        if self.config.env.env in ['DMC', 'Gym']:
+        if self.hparams.env_type in ['DMC', 'Gym']:
             output_values = output_values.clip(0, 1e5)
 
-        if self.config.model.reward_support.type == 'symlog':
+        if self.hparams.model["reward_support"]["type"] == 'symlog':
             value_prefix = symexp(value_prefix)
         else:
-            value_prefix = DiscreteSupport.vector_to_scalar(value_prefix, **self.config.model.reward_support)
+            value_prefix = DiscreteSupport.vector_to_scalar(value_prefix, **self.hparams.model["reward_support"])
         return next_state, value_prefix, output_values, policy, reward_hidden
 
     def get_weights(self, part='none'):

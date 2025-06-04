@@ -57,20 +57,22 @@ def symexp(x):
     return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
 
 class DiscreteSupport(object):
-    def __init__(self, config=None):
-        if config:
+    def __init__(self, hparams=None):
+        if hparams:
             # assert min < max
-            self.env = config.env.env
+            self.env = hparams.env.env
             if self.env in ['DMC', 'Gym']:
-                assert config.model.reward_support.bins == config.model.value_support.bins
-                self.size = config.model.reward_support.bins
+                assert hparams.model.reward_support.bins == hparams.model.value_support.bins
+                self.size = hparams.model.reward_support.bins
             else:
-                assert config.model.reward_support.range[0] == config.model.value_support.range[0]
-                assert config.model.reward_support.range[1] == config.model.value_support.range[1]
-                assert config.model.reward_support.scale == config.model.value_support.scale
-                self.min = config.model.reward_support.range[0]
-                self.max = config.model.reward_support.range[1]
-                self.scale = config.model.reward_support.scale
+                self.value_support = hparams.model["value_support"]
+                self.reward_support = hparams.model["reward_support"]
+                assert self.reward_support["range"][0] == self.value_support["range"][0]
+                assert self.reward_support["range"][1] == self.value_support["range"][1]
+                assert self.reward_support["scale"] == self.value_support["scale"]
+                self.min = self.reward_support["range"][0]
+                self.max = self.reward_support["range"][1]
+                self.scale = self.reward_support["scale"]
                 self.range = np.arange(self.min, self.max + self.scale, self.scale)
                 self.size = len(self.range)
 

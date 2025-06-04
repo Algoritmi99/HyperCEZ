@@ -1,0 +1,70 @@
+{
+  "alt1": {
+    "model": {
+      "num_blocks": 1,
+      "num_channels": 64,
+      "reduced_channels": 16,
+      "fc_layers": [32],
+      "down_sample": true,
+      "state_norm": false,
+      "value_prefix": true,
+      "init_zero": true,
+      "action_embedding": true,
+      "action_embedding_dim": 16,
+      "value_policy_detach": false,
+      "reward_support": {
+        "range": [-300, 300],
+        "scale": 1,
+        "env": "Atari",
+        "bins": 51,
+        "type": "support"
+      },
+      "value_support": {
+        "range": [-300, 300],
+        "scale": 1,
+        "env": "Atari",
+        "bins": 51,
+        "type": "support"
+      },
+      "lstm_hidden_size": 512,
+      "projection_layers": [1024, 1024],
+      "projection_head_layers": [256, 1024]
+    },
+    "train": {
+      "load_model_path": "",
+      "batch_size": 256,
+      "training_steps": 100000,
+      "offline_training_steps": 20000,
+      "start_transitions": 2000,
+      "eval_n_episode": 10,
+      "eval_interval": 10000,
+      "self_play_update_interval": 100,
+      "reanalyze_update_interval": 200,
+      "save_ckpt_interval": 10000,
+      "mini_batch_size": 256,
+      "reanalyze_ratio": 1.0,
+      "reward_loss_coeff": 1.0,
+      "value_loss_coeff": 0.5,
+      "policy_loss_coeff": 1.0,
+      "consistency_coeff": 5.0,
+      "decorrelation_coeff": 0.01,
+      "off_diag_coeff": 0.005,
+      "entropy_coeff": 0.005,
+      "max_grad_norm": 5,
+      "change_temperature": true,
+      "periodic_reset": false,
+      "value_reanalyze": false,
+      "path_consistency": false,
+      "use_decorrelation": false,
+      "value_policy_detach": false,
+      "optimal_Q": false,
+      "v_num": 1,
+      "value_target": "mixed",
+      "use_IQL": false,
+      "IQL_weight": 0.7,
+      "start_use_mix_training_steps": 30000.0,
+      "mixed_value_threshold": 5000.0
+    }
+
+  }
+}

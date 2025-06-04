@@ -31,9 +31,11 @@
     "run_eval_env_eps": 5,
     "n_sim_steps": 10,
     "n_sim_particles": 100,
-    "num_cem_elites": 5
+    "num_cem_elites": 5,
+    "env_type": "else"
   },
   "lqr10": {
+    "env_type": "else",
     "state_dim": 20,
     "control_dim": 10,
     "out_dim": 20,
@@ -67,6 +69,7 @@
     "num_cem_elites": 5
   },
   "hopper": {
+    "env_type": "else",
     "state_dim": 12,
     "control_dim": 3,
     "out_dim": 12,
@@ -104,6 +107,7 @@
     "mag_noise": 1
   },
   "humanoid": {
+    "env_type": "else",
     "state_dim": 376,
     "control_dim": 17,
     "out_dim": 376,
@@ -138,6 +142,7 @@
     "num_cem_elites": 5
   },
   "half_cheetah": {
+    "env_type": "else",
     "state_dim": 18,
     "control_dim": 6,
     "out_dim": 18,
@@ -175,6 +180,7 @@
     "mag_noise": 1
   },
   "inverted_pendulum": {
+    "env_type": "else",
     "state_dim": 4,
     "control_dim": 1,
     "out_dim": 4,
@@ -208,6 +214,7 @@
     "num_cem_elites": 10
   },
   "pendulum": {
+    "env_type": "else",
     "state_dim": 3,
     "control_dim": 1,
     "out_dim": 3,
@@ -241,6 +248,7 @@
     "num_cem_elites": 5
   },
   "cartpole": {
+    "env_type": "else",
     "state_dim": 4,
     "control_dim": 1,
     "out_dim": 4,
@@ -276,6 +284,7 @@
     "mag_noise": 1
   },
   "cartpole_bin": {
+    "env_type": "else",
     "state_dim": 4,
     "control_dim": 1,
     "out_dim": 4,
@@ -310,6 +319,7 @@
     "num_cem_elites": 40
   },
   "metaworld10": {
+    "env_type": "else",
     "state_dim": 9,
     "control_dim": 4,
     "out_dim": 9,
@@ -345,6 +355,7 @@
     "mag_noise": 1
   },
   "reacher": {
+    "env_type": "else",
     "state_dim": 11,
     "control_dim": 2,
     "out_dim": 11,
@@ -382,6 +393,7 @@
     "mag_noise": 1
   },
   "pusher": {
+    "env_type": "else",
     "state_dim": 10,
     "control_dim": 2,
     "out_dim": 10,
@@ -419,6 +431,7 @@
     "mag_noise": 1.0
   },
   "door": {
+    "env_type": "else",
     "state_dim": 4,
     "control_dim": 3,
     "out_dim": 4,
@@ -456,6 +469,7 @@
     "mag_noise": 1.0
   },
   "door_pose": {
+    "env_type": "else",
     "state_dim": 26,
     "control_dim": 7,
     "out_dim": 26,
@@ -495,6 +509,7 @@
     "mag_noise": 0.5
   },
   "pusher_rot": {
+    "env_type": "else",
     "state_dim": 20,
     "control_dim": 2,
     "out_dim": 20,
@@ -532,6 +547,7 @@
     "mag_noise": 1.0
   },
   "pusher_slide": {
+    "env_type": "else",
     "state_dim": 18,
     "control_dim": 2,
     "out_dim": 18,

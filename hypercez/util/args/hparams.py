@@ -1,13 +1,6 @@
 import json
 
 
-with open('./hypercez/util/args/hnet_hparams.json') as f:
-    hnet_hparams = json.load(f)
-
-with open("./hypercez/util/args/env_hparams.json") as f:
-    env_hparams = json.load(f)
-
-
 class Hparams:
     def __init__(self, env: str, seed=None, save_folder='./runs/lqr'):
         self.h_dims = None
@@ -23,6 +16,9 @@ class Hparams:
         self.gt_dynamic = False
         self.gpuid = "cuda:0"
 
+        with open("./hypercez/util/args/env_hparams.json") as f:
+            env_hparams = json.load(f)
+
         env_param_key = ""
         for key in env_hparams.keys():
             if env.startswith(key) or env == key:
@@ -36,6 +32,9 @@ class Hparams:
             setattr(self, attr, env_hparams[env_param_key][attr])
 
     def add_hnet_hparams(self):
+        with open('./hypercez/util/args/hnet_hparams.json') as f:
+            hnet_hparams = json.load(f)
+
         # Hypernetwork
         setattr(self, 'hnet_arch', hnet_hparams["un-chunked"]["hnet_arch"][str(self.h_dims)])
         setattr(self, "hnet_act", "elu" if self.env == "door" or self.env == "pusher" else "relu")
@@ -50,6 +49,9 @@ class Hparams:
         setattr(self, 'beta', 0.5 if self.env == "door_pose" or self.env == "pusher_slide" else 0.05)
 
     def add_chunked_hnet_hparams(self):
+        with open('./hypercez/util/args/hnet_hparams.json') as f:
+            hnet_hparams = json.load(f)
+
         setattr(self, "hnet_arch", hnet_hparams["chunked"]["hnet_arch"][str(self.h_dims)])
         setattr(self, "chunk_dim", hnet_hparams["chunked"]["chunk_dim"][str(self.h_dims)])
         setattr(self,"cemb_size", hnet_hparams["chunked"]["cemb_size"][str(self.h_dims)])
@@ -61,3 +63,10 @@ class Hparams:
             "backprop_dt", "use_sgd_change", "ewc_weight_importance", "n_fisher"
         ]:
             setattr(self, attr, hnet_hparams["chunked"][attr])
+
+    def add_ez_hparams(self, alt_id: int):
+        with open('./hypercez/util/args/ez_hparams.json') as f:
+            ez_hparams = json.load(f)["alt" + str(alt_id)]
+
+        for attr in ez_hparams.keys():
+            setattr(self, attr, ez_hparams[attr])
