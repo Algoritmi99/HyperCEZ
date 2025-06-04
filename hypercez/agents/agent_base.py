@@ -17,4 +17,3 @@ class Agent:
 
     def init_model(self):
         raise NotImplementedError
-

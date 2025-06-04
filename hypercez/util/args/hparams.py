@@ -54,7 +54,7 @@ class Hparams:
 
         setattr(self, "hnet_arch", hnet_hparams["chunked"]["hnet_arch"][str(self.h_dims)])
         setattr(self, "chunk_dim", hnet_hparams["chunked"]["chunk_dim"][str(self.h_dims)])
-        setattr(self,"cemb_size", hnet_hparams["chunked"]["cemb_size"][str(self.h_dims)])
+        setattr(self, "cemb_size", hnet_hparams["chunked"]["cemb_size"][str(self.h_dims)])
         setattr(self, "hnet_act", 'relu')
 
         for attr in [

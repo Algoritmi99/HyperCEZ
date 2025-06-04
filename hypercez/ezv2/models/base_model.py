@@ -8,6 +8,7 @@
 import torch
 import torch.nn as nn
 
+
 # Post Activated Residual block
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, downsample=None, stride=1):
@@ -35,6 +36,7 @@ class ResidualBlock(nn.Module):
         out = nn.functional.relu(out)
         return out
 
+
 # Residual block
 class FCResidualBlock(nn.Module):
     def __init__(self, input_shape, hidden_shape):
@@ -59,12 +61,12 @@ class FCResidualBlock(nn.Module):
 
 
 def mlp(
-    input_size,
-    hidden_sizes,
-    output_size,
-    output_activation=nn.Identity,
-    activation=nn.ELU,
-    init_zero=False,
+        input_size,
+        hidden_sizes,
+        output_size,
+        output_activation=nn.Identity,
+        activation=nn.ELU,
+        init_zero=False,
 ):
     """
     MLP layers
@@ -101,7 +103,6 @@ def conv3x3(in_channels, out_channels, stride=1):
     return nn.Conv2d(
         in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False
     )
-
 
 
 # Down_sample observations before representation network (See paper appendix Network Architecture)
@@ -196,7 +197,8 @@ class RepresentationNetwork(nn.Module):
 
 # Predict next hidden states given current states and actions
 class DynamicsNetwork(nn.Module):
-    def __init__(self, num_blocks, num_channels, action_space_size, is_continuous=False, action_embedding=False, action_embedding_dim=32):
+    def __init__(self, num_blocks, num_channels, action_space_size, is_continuous=False, action_embedding=False,
+                 action_embedding_dim=32):
         """
         Dynamics network
         :param num_blocks: int, number of res blocks
@@ -258,7 +260,8 @@ class DynamicsNetwork(nn.Module):
 
 
 class ValuePolicyNetwork(nn.Module):
-    def __init__(self, num_blocks: int, num_channels: int, reduced_channels, flatten_size: int, fc_layers, value_output_size,
+    def __init__(self, num_blocks: int, num_channels: int, reduced_channels, flatten_size: int, fc_layers,
+                 value_output_size,
                  policy_output_size, init_zero, is_continuous=False, **kwargs):
         super().__init__()
         self.v_num = kwargs.get('v_num')
@@ -272,7 +275,8 @@ class ValuePolicyNetwork(nn.Module):
         self.block_output_size_value = flatten_size
         self.block_output_size_policy = flatten_size
         self.fc_values = nn.ModuleList([mlp(self.block_output_size_value, fc_layers, value_output_size,
-                            init_zero=False if is_continuous else init_zero) for _ in range(self.v_num)])
+                                            init_zero=False if is_continuous else init_zero) for _ in
+                                        range(self.v_num)])
         self.fc_policy = mlp(self.block_output_size_policy, fc_layers if not is_continuous else [64],
                              policy_output_size, init_zero=init_zero)
 
@@ -302,9 +306,11 @@ class ValuePolicyNetwork(nn.Module):
         if self.is_continuous:
             action_space_size = policy.shape[-1] // 2
             policy[:, :action_space_size] = 5 * torch.tanh(policy[:, :action_space_size] / 5)  # soft clamp mu
-            policy[:, action_space_size:] = (torch.nn.functional.softplus(policy[:, action_space_size:] + self.init_std) + self.min_std)#.clip(0, 5)  # same as Dreamer-v3
+            policy[:, action_space_size:] = (torch.nn.functional.softplus(
+                policy[:, action_space_size:] + self.init_std) + self.min_std)  # .clip(0, 5)  # same as Dreamer-v3
 
         return torch.stack(values), policy
+
 
 class SupportNetwork(nn.Module):
     def __init__(self, num_channels, reduced_channels, flatten_size: int, fc_layers, output_support_size, init_zero):
@@ -316,7 +322,6 @@ class SupportNetwork(nn.Module):
         self.fc = mlp(flatten_size, fc_layers, output_support_size, init_zero=init_zero)
 
     def forward(self, x):
-
         x = self.conv1x1(x)
         x = self.bn(x)
         x = nn.functional.relu(x)
@@ -326,7 +331,8 @@ class SupportNetwork(nn.Module):
 
 
 class SupportLSTMNetwork(nn.Module):
-    def __init__(self, num_channels, reduced_channels, flatten_size: int, fc_layers, output_support_size, lstm_hidden_size, init_zero):
+    def __init__(self, num_channels, reduced_channels, flatten_size: int, fc_layers, output_support_size,
+                 lstm_hidden_size, init_zero):
         super().__init__()
         self.flatten_size = flatten_size
 
@@ -337,7 +343,6 @@ class SupportLSTMNetwork(nn.Module):
         self.fc = mlp(lstm_hidden_size, fc_layers, output_support_size, init_zero=init_zero)
 
     def forward(self, x, hidden):
-
         x = self.conv1x1_reward(x)
         x = self.bn_reward(x)
         x = nn.functional.relu(x)

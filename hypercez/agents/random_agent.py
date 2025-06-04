@@ -9,4 +9,3 @@ class RandomAgent(Agent):
 
     def act(self, state, task_id=None):
         return np.random.randn(self.control_dim, 1)
-

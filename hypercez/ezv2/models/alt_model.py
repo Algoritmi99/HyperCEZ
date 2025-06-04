@@ -5,9 +5,9 @@
 
 # Code refactored by Arash Torabi Goodarzi
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 import torchrl.modules
 
 
@@ -146,9 +146,9 @@ class RunningMeanStd(nn.Module):
             var = x.var(dim=0, unbiased=False)
             batch_count = x.shape[0]
             self.running_mean, self.running_var, self.count = update_mean_var_count_from_moments(self.running_mean,
-                                                                                                      self.running_var,
-                                                                                                      self.count, mean,
-                                                                                                      var, batch_count)
+                                                                                                 self.running_var,
+                                                                                                 self.count, mean,
+                                                                                                 var, batch_count)
             global_mean = self.running_mean
             global_var = self.running_var
         else:

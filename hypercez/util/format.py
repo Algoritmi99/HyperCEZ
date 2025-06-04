@@ -5,15 +5,15 @@
 
 # Refactored by Arash T. Goodarzi
 
-import os
-import cv2
-import time
-import torch
-import random
 import logging
-import numpy as np
-
+import os
+import random
 import subprocess as sp
+import time
+
+import cv2
+import numpy as np
+import torch
 
 
 class LinearSchedule(object):
@@ -44,17 +44,22 @@ class LinearSchedule(object):
 def transform_one2(x):
     return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.0) - 1) + 0.001 * x
 
+
 def transform_one(x):
     return np.sign(x) * (np.sqrt(np.abs(x) + 1.0) - 1) + 0.001 * x
+
 
 def atanh(x):
     return 0.5 * (torch.log(1 + x + 1e-6) - torch.log(1 - x + 1e-6))
 
+
 def symlog(x):
     return torch.sign(x) * torch.log(torch.abs(x) + 1)
 
+
 def symexp(x):
     return torch.sign(x) * (torch.exp(torch.abs(x)) - 1)
+
 
 class DiscreteSupport(object):
     def __init__(self, hparams=None):

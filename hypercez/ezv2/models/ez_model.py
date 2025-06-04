@@ -112,7 +112,6 @@ class EfficientZero(nn.Module):
 
         return state, output_values, policy
 
-
     def recurrent_inference(self, state, action, reward_hidden, training=False):
         next_state = self.do_dynamics(state, action)
         value_prefix, reward_hidden = self.do_reward_prediction(next_state, reward_hidden)

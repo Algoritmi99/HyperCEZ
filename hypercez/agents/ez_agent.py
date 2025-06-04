@@ -5,20 +5,18 @@ from enum import IntEnum
 import torch.nn as nn
 
 from hypercez.agents.agent_base import Agent
-from hypercez.ezv2.models.base_model import RepresentationNetwork as BaseRepresentationNetwork
+from hypercez.ezv2.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
+from hypercez.ezv2.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
+from hypercez.ezv2.models.alt_model import RewardNetwork as AltRewardNetwork
+from hypercez.ezv2.models.alt_model import RewardNetworkLSTM as AltRewardNetworkLSTM
+from hypercez.ezv2.models.alt_model import ValuePolicyNetwork as AltValuePolicyNetwork
 from hypercez.ezv2.models.base_model import DynamicsNetwork as BaseDynamicsNetwork
-from hypercez.ezv2.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
+from hypercez.ezv2.models.base_model import ProjectionHeadNetwork as BaseProjectionHeadNetwork
+from hypercez.ezv2.models.base_model import ProjectionNetwork as BaseProjectionNetwork
+from hypercez.ezv2.models.base_model import RepresentationNetwork as BaseRepresentationNetwork
 from hypercez.ezv2.models.base_model import SupportLSTMNetwork as BaseSupportLSTMNetwork
 from hypercez.ezv2.models.base_model import SupportNetwork as BaseSupportNetwork
-from hypercez.ezv2.models.base_model import ProjectionNetwork as BaseProjectionNetwork
-from hypercez.ezv2.models.base_model import ProjectionHeadNetwork as BaseProjectionHeadNetwork
-
-from hypercez.ezv2.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
-from hypercez.ezv2.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
-from hypercez.ezv2.models.alt_model import ValuePolicyNetwork as AltValuePolicyNetwork
-from hypercez.ezv2.models.alt_model import RewardNetworkLSTM as AltRewardNetworkLSTM
-from hypercez.ezv2.models.alt_model import RewardNetwork as AltRewardNetwork
-
+from hypercez.ezv2.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.models.ez_model import EfficientZero
 from hypercez.util.format import DiscreteSupport
 
@@ -35,8 +33,10 @@ class EZAgent(Agent):
         self.agent_type = agent_type
         hparams.add_ez_hparams(agent_type.value)
         self.num_blocks = hparams.model["num_blocks"]
-        self.num_channels = hparams.model["num_channels"] if agent_type == AgentType.DMC_IMAGE or agent_type == AgentType.ATARI else None
-        self.reduced_channels = hparams.model["reduced_channels"] if agent_type == AgentType.DMC_IMAGE or agent_type == AgentType.ATARI else None
+        self.num_channels = hparams.model[
+            "num_channels"] if agent_type == AgentType.DMC_IMAGE or agent_type == AgentType.ATARI else None
+        self.reduced_channels = hparams.model[
+            "reduced_channels"] if agent_type == AgentType.DMC_IMAGE or agent_type == AgentType.ATARI else None
         self.fc_layers = hparams.model["fc_layers"]
         self.down_sample = hparams.model["down_sample"]
         self.state_norm = hparams.model["state_norm"]
@@ -44,8 +44,10 @@ class EZAgent(Agent):
         self.init_zero = hparams.model["init_zero"]
         self.value_ensemble = hparams.model["value_ensemble"] if agent_type == AgentType.DMC_STATE else None
         self.action_embedding = hparams.model["action_embedding"]
-        self.action_embedding_dim = hparams.model["action_embedding_dim"] if not agent_type == AgentType.DMC_STATE else None
-        self.value_policy_detach = hparams.model["value_policy_detach"] if not agent_type == AgentType.DMC_STATE else None
+        self.action_embedding_dim = hparams.model[
+            "action_embedding_dim"] if not agent_type == AgentType.DMC_STATE else None
+        self.value_policy_detach = hparams.model[
+            "value_policy_detach"] if not agent_type == AgentType.DMC_STATE else None
         self.v_num = hparams.train["v_num"]
 
     def init_model_atari(self):
@@ -147,7 +149,8 @@ class EZAgent(Agent):
 
         is_continuous = (self.hparams.env_type == "DMC")
 
-        value_output_size = self.hparams.model["value_support"]["size"] if self.hparams.model["value_support"]["type"] != 'symlog' else 1
+        value_output_size = self.hparams.model["value_support"]["size"] if self.hparams.model["value_support"][
+                                                                               "type"] != 'symlog' else 1
 
         dynamics_model = BaseDynamicsNetwork(
             self.num_blocks,
