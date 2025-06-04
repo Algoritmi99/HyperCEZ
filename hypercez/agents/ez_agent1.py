@@ -61,10 +61,10 @@ class EZAgent(Agent):
         projection_model = ProjectionNetwork(state_dim, projection_layers[0], projection_layers[1])
         projection_head_model = ProjectionHeadNetwork(projection_layers[1], head_layers[0], head_layers[1])
 
-        ez_model = EfficientZero(representation_model, dynamics_model, reward_prediction_model, value_policy_model,
+        self.model = EfficientZero(representation_model, dynamics_model, reward_prediction_model, value_policy_model,
                                  projection_model, projection_head_model, self.hparams,
                                  state_norm=self.state_norm, value_prefix=self.value_prefix)
 
-        return ez_model
+        return self.model
 
 
