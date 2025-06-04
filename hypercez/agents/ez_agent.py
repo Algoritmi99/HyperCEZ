@@ -316,3 +316,6 @@ class EZAgent(Agent):
             AgentType.DMC_STATE: self.init_model_dmc_state,
         }
         return init_map[self.agent_type]()
+
+    def act(self, state):
+        pass
