@@ -1,5 +1,5 @@
-from ez.mcts.ptree.pminimax import PMinMaxStatsList
-from ez.mcts.ptree.pnode import PRoots, p_batch_sequential_halving, p_batch_traverse, p_batch_back_propagate, PSearchResults
+from hypercez.ezv2.mcts.ptree.pminimax import PMinMaxStatsList
+from hypercez.ezv2.mcts.ptree.pnode import PRoots, p_batch_sequential_halving, p_batch_traverse, p_batch_back_propagate, PSearchResults
 
 
 class MinMaxStatsList:
