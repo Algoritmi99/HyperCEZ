@@ -30,17 +30,17 @@ class PMinMaxStats:
 class PMinMaxStatsList:
     def __init__(self, num: int = 0):
         self.num = num
-        self.stat_lst = []
+        self.stats_lst = []
         if num > 0:
-            self.stat_lst = [PMinMaxStats() for i in range(num)]
+            self.stats_lst = [PMinMaxStats() for i in range(num)]
 
     def set_delta(self, value_delta_max):
-        for stat in self.stat_lst:
+        for stat in self.stats_lst:
             stat.set_delta(value_delta_max)
 
     def get_min_max(self):
         min_maxs = []
         for i in range(self.num):
-            min_maxs.append(self.stat_lst[i].minimum)
-            min_maxs.append(self.stat_lst[i].maximum)
+            min_maxs.append(self.stats_lst[i].minimum)
+            min_maxs.append(self.stats_lst[i].maximum)
         return min_maxs
