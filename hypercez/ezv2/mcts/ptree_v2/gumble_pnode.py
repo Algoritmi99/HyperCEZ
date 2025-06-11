@@ -1,5 +1,7 @@
 import math
 import random
+import time
+
 from numpy import argmax
 
 from hypercez.ezv2.mcts.ptree.pminimax import PMinMaxStats, PMinMaxStatsList
@@ -463,9 +465,9 @@ def pselect_child(root: PNode, min_max_stats: PMinMaxStats, c_visit: float, c_sc
         return int(action)
 
 
-def cmulti_traverse(roots, c_visit: float, c_scale: float, discount: float,
-                    min_max_stats_lst, results, simulation_idx: int,
-                    gumbels: List[List[float]]):
+def pmulti_traverse(roots: PRoots, c_visit: float, c_scale: float, discount: float,
+                    min_max_stats_lst: PMinMaxStatsList, results: PSearchResults, simulation_idx: int,
+                    gumbels: list[list[float]]):
 
     # Seed random using microsecond-level precision
     random.seed(int((time.time() % 1) * 1_000_000))
@@ -493,6 +495,52 @@ def cmulti_traverse(roots, c_visit: float, c_scale: float, discount: float,
             node.best_action = action
             node = node.get_child(action)
             last_action = action
+            results.search_paths[i].append(node)
+            search_len += 1
+
+        parent = results.search_paths[i][-2]
+        results.hidden_state_index_x_lst.append(parent.hidden_state_index_x)
+        results.hidden_state_index_y_lst.append(parent.hidden_state_index_y)
+        results.last_actions.append(last_action)
+        results.search_lens.append(search_len)
+        results.nodes.append(node)
+
+
+def pmulti_traverse_return_path(roots: PRoots, c_visit: float, c_scale: float, discount: float,
+                                min_max_stats_lst: PMinMaxStatsList, results: PSearchResults, simulation_idx: int,
+                                gumbels: list[list[float]]):
+    # Seed the random number generator with microsecond precision
+    random.seed(int((time.time() % 1) * 1_000_000))
+
+    results.search_lens = []
+
+    last_action = -1
+    for i in range(results.num):
+        node = roots.roots[i]
+        search_len = 0
+        results.search_paths[i].append(node)
+
+        while node.expanded():
+            # Record search path indices
+            results.search_path_index_x_lst[i].append(node.hidden_state_index_x)
+            results.search_path_index_y_lst[i].append(node.hidden_state_index_y)
+
+            # Select child action
+            action = pselect_child(
+                node,
+                min_max_stats_lst.stats_lst[i],
+                c_visit,
+                c_scale,
+                discount,
+                simulation_idx,
+                gumbels[i],
+                node.m  # or roots.roots[i].m
+            )
+
+            node.best_action = action
+            node = node.get_child(action)
+            last_action = action
+            results.search_path_actions[i].append(action)
             results.search_paths[i].append(node)
             search_len += 1
 
