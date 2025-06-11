@@ -1,6 +1,115 @@
 import math
+import random
+from numpy import argmax
 
 from hypercez.ezv2.mcts.ptree.pminimax import PMinMaxStats, PMinMaxStatsList
+
+
+def calc_advantage(node: 'PNode', discount: float):
+    advantage = []
+    completed_q = node.completedQ(discount)
+    node_value = node.value()
+    for a in range(node.action_num):
+        advantage.append(completed_q[a] - node_value)  # target_V - this_V
+    return advantage
+
+
+def sigma(value: float, root: 'PNode', c_visit: float, c_scale: float):
+    max_visit = 0
+    for a in range(root.action_num):
+        child = root.get_child(a)
+        if child.visit_count > max_visit:
+            max_visit = child.visit_count
+    return (c_visit + max_visit) * c_scale * value
+
+
+def calc_pi_prime(node: 'PNode', min_max_stats: PMinMaxStats, c_visit: float, c_scale: float, discount: float, final: int = 0):
+    pi_prime = []
+    sigmaQ = []
+    completedQ = node.completedQ(discount)
+    pi_prime_max = -10000.0
+
+    for a in range(node.action_num):
+        child = node.get_child(a)
+        normalized_value = min_max_stats.normalize(completedQ[a])
+        normalized_value = min(max(normalized_value, 0), 1)
+        sigma_val = sigma(normalized_value, node, c_visit, c_scale)
+        sigmaQ.append(sigma_val)
+        score = child.prior + sigma_val
+        pi_prime_max = max(pi_prime_max, score)
+        pi_prime.append(score)
+
+    pi_value_sum = 0.0
+    for a in range(node.action_num):
+        pi_prime[a] = math.exp(pi_prime[a] - pi_prime_max)
+        pi_value_sum += pi_prime[a]
+
+    for a in range(node.action_num):
+        pi_prime[a] /= pi_value_sum
+
+    return pi_prime
+
+
+
+def calc_pi_prime_dot(node: 'PNode', min_max_stats: PMinMaxStats, c_visit: float, c_scale: float, discount: float):
+    pi_prime = []
+    completed_q = node.completedQ(discount)
+    pi_prime_max = -10000.0
+
+    for a in range(node.action_num):
+        child = node.get_child(a)
+        normalized_value = min_max_stats.normalize(completed_q[a])
+        visit_count = max(child.visit_count, 1)
+
+        if normalized_value < 0:
+            normalized_value = 0
+        if normalized_value > 1:
+            normalized_value = 1
+
+        score = child.prior + sigma(normalized_value * math.log(visit_count + 1), node, c_visit, c_scale)
+        pi_prime_max = max(pi_prime_max, score)
+        pi_prime.append(score)
+
+    pi_value_sum = 0.0
+    for a in range(node.action_num):
+        pi_prime[a] = math.exp(pi_prime[a] - pi_prime_max)
+        pi_value_sum += pi_prime[a]
+
+    for a in range(node.action_num):
+        pi_prime[a] /= pi_value_sum
+
+    return pi_prime
+
+
+def calc_gumbel_score(node: 'PNode',
+                      gumbels: list[float],
+                      min_max_stats: PMinMaxStats,
+                      c_visit: float,
+                      c_scale: float,
+                      discount: float):
+    gumbel_scores = []
+    completedQ = node.completedQ(discount)
+    for a, child in node.selected_children:
+        normalized_value = min_max_stats.normalize(completedQ[a])
+        if normalized_value < 0:
+            normalized_value = 0
+        if normalized_value > 1:
+            normalized_value = 1
+        score = gumbels[a] + child.prior + sigma(normalized_value, node, c_visit, c_scale)
+        gumbel_scores.append((a, score))
+    return gumbel_scores
+
+
+def calc_non_root_score(node: 'PNode', min_max_stats: PMinMaxStats, c_visit: float, c_scale: float, discount: float):
+    pi_primes = calc_pi_prime(node, min_max_stats, c_visit, c_scale, discount, final=0)
+    scores = []
+
+    for a in range(node.action_num):
+        child = node.get_child(a)
+        score = pi_primes[a] - (child.visit_count / (1.0 + node.visit_count))
+        scores.append(score)
+
+    return scores
 
 
 class PSearchResults:
@@ -153,70 +262,6 @@ class PNode:
         return traj
 
 
-def calc_advantage(node: PNode, discount: float):
-    advantage = []
-    completed_q = node.completedQ(discount)
-    node_value = node.value()
-    for a in range(node.action_num):
-        advantage.append(completed_q[a] - node_value)  # target_V - this_V
-    return advantage
-
-def sigma(value: float, root: PNode, c_visit: float, c_scale: float):
-    max_visit = 0
-    for a in range(root.action_num):
-        child = root.get_child(a)
-        if child.visit_count > max_visit:
-            max_visit = child.visit_count
-    return (c_visit + max_visit) * c_scale * value
-
-def calc_pi_prime_dot(node: PNode, min_max_stats: PMinMaxStats, c_visit: float, c_scale: float, discount: float):
-    pi_prime = []
-    completed_q = node.completedQ(discount)
-    pi_prime_max = -10000.0
-
-    for a in range(node.action_num):
-        child = node.get_child(a)
-        normalized_value = min_max_stats.normalize(completed_q[a])
-        visit_count = max(child.visit_count, 1)
-
-        if normalized_value < 0:
-            normalized_value = 0
-        if normalized_value > 1:
-            normalized_value = 1
-
-        score = child.prior + sigma(normalized_value * math.log(visit_count + 1), node, c_visit, c_scale)
-        pi_prime_max = max(pi_prime_max, score)
-        pi_prime.append(score)
-
-    pi_value_sum = 0.0
-    for a in range(node.action_num):
-        pi_prime[a] = math.exp(pi_prime[a] - pi_prime_max)
-        pi_value_sum += pi_prime[a]
-
-    for a in range(node.action_num):
-        pi_prime[a] /= pi_value_sum
-
-    return pi_prime
-
-def calc_gumbel_score(node: PNode,
-                      gumbels: list[float],
-                      min_max_stats: PMinMaxStats,
-                      c_visit: float,
-                      c_scale: float,
-                      discount: float):
-    gumbel_scores = []
-    completedQ = node.completedQ(discount)
-    for a, child in node.selected_children:
-        normalized_value = min_max_stats.normalize(completedQ[a])
-        if normalized_value < 0:
-            normalized_value = 0
-        if normalized_value > 1:
-            normalized_value = 1
-        score = gumbels[a] + child.prior + sigma(normalized_value, node, c_visit, c_scale)
-        gumbel_scores.append((a, score))
-    return gumbel_scores
-
-
 class PRoots:
     def __init__(self, root_num: int = 0, action_num: int = 0, pool_size: int = 0):
         self.root_num = root_num
@@ -280,7 +325,180 @@ class PRoots:
             actions.append(action)
         return actions
 
+    def get_values(self):
+        return [self.roots[i].value() for i in range(self.root_num)]
+
+    def get_child_values(self, discount):
+        return [self.roots[i].completedQ(discount) for i in range(self.root_num)]
 
 
+def sequential_halving(root: PNode,
+                       simulation_idx: int,
+                       min_max_stats: PMinMaxStats,
+                       gumbels: list[float],
+                       c_visit: float,
+                       c_scale: float,
+                       discount: float):
+    if root.phase_added_flag == 0:
+        if root.current_phase < root.phase_num - 1:
+            increment = max(1, int(float(root.simulation_num) / float(root.phase_num) / float(root.m)))
+            root.phase_to_visit_num += increment * root.m
+            root.phase_to_visit_num = min(root.phase_to_visit_num, root.simulation_num)
+            root.phase_added_flag = 1
+        elif root.current_phase == root.phase_num - 1:
+            root.phase_to_visit_num = root.simulation_num
+            root.phase_added_flag = 1
+
+    if (simulation_idx + 1) >= root.phase_to_visit_num:
+        if len(root.selected_children) >= 2:
+            values = calc_gumbel_score(root, gumbels, min_max_stats, c_visit, c_scale, discount)
+            values.sort(key=lambda x: x[1], reverse=True)
+
+            root.selected_children.clear()
+            for j in range(len(values) // 2):
+                a = values[j][0]
+                child = root.get_child(a)
+                root.selected_children.append((a, child))
+
+            root.m = len(root.selected_children)
+            root.current_phase += 1
+            root.phase_added_flag = 0
 
 
+def pback_propagate(search_path: list[PNode], min_max_stats: PMinMaxStats, to_play: int, value: float, discount: float):
+    bootstrap_value = value
+    path_len = len(search_path)
+
+    for i in range(path_len - 1, -1, -1):
+        node = search_path[i]
+        node.value_sum += bootstrap_value
+        node.visit_count += 1
+
+        parent_reward_sum = 0.0
+        is_reset = 0
+        if i >= 1:
+            parent = search_path[i - 1]
+            parent_reward_sum = parent.reward_sum
+            is_reset = parent.is_reset
+
+        true_reward = node.reward_sum - parent_reward_sum
+        if is_reset == 1:
+            true_reward = node.reward_sum  # parent was reset
+
+        bootstrap_value = true_reward + discount * bootstrap_value
+        min_max_stats.update(bootstrap_value)
+
+
+def pmulti_back_propagate(
+    hidden_state_index_x: int,
+    discount: float,
+    reward_sums: list[float],
+    values: list[float],
+    policies: list[list[float]],
+    min_max_stats_lst: PMinMaxStatsList,
+    results: PSearchResults,
+    is_reset_lst: list[int],
+    simulation_idx: int,
+    gumbels: list[list[float]],
+    c_visit: float,
+    c_scale: float,
+    simulation_num: int
+):
+    for i in range(results.num):
+        node = results.nodes[i]
+
+        # Expand node with the current policy
+        node.expand(0, hidden_state_index_x, i, reward_sums[i], policies[i], simulation_num)
+
+        # Set reset flag
+        node.is_reset = is_reset_lst[i]
+
+        # Back propagate value through the search path
+        pback_propagate(results.search_paths[i], min_max_stats_lst.stats_lst[i], 0, values[i], discount)
+
+        # Perform sequential halving on the root node
+        root = results.search_paths[i][0]
+        sequential_halving(root, simulation_idx, min_max_stats_lst.stats_lst[i], gumbels[i], c_visit, c_scale, discount)
+
+
+def pselect_child(root: PNode, min_max_stats: PMinMaxStats, c_visit: float, c_scale: float, discount: float,
+                  simulation_idx: int, gumbels: list[float], m: int) -> int:
+    if root.is_root == 1:
+        if simulation_idx == 0:
+            gumbel_policy = []
+            for a in range(root.action_num):
+                child = root.get_child(a)
+                gumbel_policy.append((a, gumbels[a] + child.prior))
+                # Alternatively, include `child.q_init` if needed
+                # gumbel_policy.append((a, gumbels[a] + child.prior + child.q_init))
+
+            gumbel_policy.sort(key=lambda x: x[1], reverse=True)
+
+            root.selected_children = []
+            for a in range(m):
+                to_select = gumbel_policy[a][0]
+                root.selected_children.append((to_select, root.get_child(to_select)))
+
+        # Select the child with the minimum visit count
+        min_visit = float('inf')
+        min_index_list = []
+        for action, _ in root.selected_children:
+            child = root.get_child(action)
+            if child.visit_count < min_visit:
+                min_visit = child.visit_count
+                min_index_list = [action]
+            elif child.visit_count == min_visit:
+                min_index_list.append(action)
+
+        if min_index_list:
+            action = random.choice(min_index_list)
+        else:
+            action = 0  # Fallback in case something goes wrong
+        return action
+
+    else:
+        # Not root: use non-root scoring logic
+        scores = calc_non_root_score(root, min_max_stats, c_visit, c_scale, discount)
+        action = argmax(scores)  # This should be defined elsewhere to return the index of the max score
+        return int(action)
+
+
+def cmulti_traverse(roots, c_visit: float, c_scale: float, discount: float,
+                    min_max_stats_lst, results, simulation_idx: int,
+                    gumbels: List[List[float]]):
+
+    # Seed random using microsecond-level precision
+    random.seed(int((time.time() % 1) * 1_000_000))
+
+    results.search_lens = []
+    last_action = -1
+
+    for i in range(results.num):
+        node = roots.roots[i]
+        search_len = 0
+        results.search_paths[i].append(node)
+
+        while node.expanded():
+            action = pselect_child(
+                node,
+                min_max_stats_lst.stats_lst[i],
+                c_visit,
+                c_scale,
+                discount,
+                simulation_idx,
+                gumbels[i],
+                roots.roots[i].m
+            )
+
+            node.best_action = action
+            node = node.get_child(action)
+            last_action = action
+            results.search_paths[i].append(node)
+            search_len += 1
+
+        parent = results.search_paths[i][-2]
+        results.hidden_state_index_x_lst.append(parent.hidden_state_index_x)
+        results.hidden_state_index_y_lst.append(parent.hidden_state_index_y)
+        results.last_actions.append(last_action)
+        results.search_lens.append(search_len)
+        results.nodes.append(node)
