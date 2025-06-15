@@ -310,14 +310,13 @@ def pucb_score(child,
     return ucb_value
 
 
-def pbatch_traverse(
-    roots: PRoots,
-    pb_c_base: int,
-    pb_c_init: float,
-    discount: float,
-    min_max_stats_lst: PMinMaxStatsList,
-    results: PSearchResults
-):
+def pbatch_traverse(roots: PRoots,
+                    pb_c_base: int,
+                    pb_c_init: float,
+                    discount: float,
+                    min_max_stats_lst: PMinMaxStatsList,
+                    results: PSearchResults
+                    ):
     # Set seed based on current microseconds
     t1 = time.time()
     seed = int((t1 - int(t1)) * 1_000_000)
