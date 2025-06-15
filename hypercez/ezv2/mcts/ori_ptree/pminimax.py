@@ -30,7 +30,10 @@ class PMinMaxStats:
 
 
 class PMinMaxStatsList:
-    pass
+    def __init__(self, num: int = 0):
+        self.num = num
+        self.stats_lst: list[PMinMaxStats] = [PMinMaxStats() for _ in range(num)] if num > 0 else []
 
-
-
+    def set_delta(self, value_delta_max: float):
+        for i in range(self.num):
+            self.stats_lst[i].set_delta(value_delta_max)
