@@ -121,4 +121,37 @@ class PNode:
         return self.ptr_node_pool[self.children_index[action]]
 
 
+class PRoots:
+    def __init__(self, root_num: int = 0, action_num: int = 0, pool_size: int = 0):
+        self.root_num = root_num
+        self.action_num = action_num
+        self.pool_size = pool_size
+        self.node_pools: list[list[PNode]] = [[] for _ in range(self.root_num)]
+        self.roots: list[PNode] = [PNode(0, action_num, self.node_pools[i]) for i in range(self.root_num)]
+
+    def prepare(self, root_exploration_fraction, noises, value_prefixes, policies):
+        for i in range(self.root_num):
+            self.roots[i].expand(0, 0, i, value_prefixes[i], policies[i])
+            self.roots[i].add_exploration_noise(root_exploration_fraction, noises[i])
+            self.roots[i].visit_count += 1
+
+    def prepare_no_noise(self, value_prefixes, policies):
+        for i in range(self.root_num):
+            self.roots[i].expand(0, 0, i, value_prefixes[i], policies[i])
+            self.roots[i].visit_count += 1
+
+    def clear(self):
+        self.node_pools.clear()
+        self.roots.clear()
+
+    def get_trajectories(self):
+        return [self.roots[i].get_trajectory() for i in range(self.root_num)]
+
+    def get_distributions(self):
+        return [self.roots[i].get_children_distribution() for i in range(self.root_num)]
+
+    def get_values(self):
+        return [self.roots[i].value() for i in range(self.root_num)]
+
+
 
