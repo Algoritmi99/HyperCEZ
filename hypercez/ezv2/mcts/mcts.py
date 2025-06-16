@@ -8,9 +8,11 @@ import numpy as np
 import torch
 from torch.cuda.amp import autocast as autocast
 
-from hypercez.ezv2.mcts.ctree_v2 import cytree as tree2
-from hypercez.ezv2.mcts.ori_ctree import cytree as ori_tree
+# from hypercez.ezv2.mcts.ctree_v2 import cytree as tree2
+# from hypercez.ezv2.mcts.ori_ctree import cytree as ori_tree
 # from hypercez.ezv2.mcts.ctree import cytree as tree
+from hypercez.ezv2.mcts.ptree_v2 import pytree as tree2
+from hypercez.ezv2.mcts.ori_ptree import pytree as ori_tree
 from hypercez.ezv2.mcts.ptree import pytree as tree
 from hypercez.util.distribution import SquashedNormal
 from .base import MCTS_base

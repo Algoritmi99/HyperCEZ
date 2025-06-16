@@ -78,7 +78,8 @@
       "IQL_weight": 0.7,
       "start_use_mix_training_steps": 30000.0,
       "mixed_value_threshold": 5000.0
-    }
+    },
+    "mcts_lang": "python"
   },
   "alt1": {
     "model": {
@@ -170,7 +171,9 @@
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
       "mixed_value_threshold": 20000.0
-    }
+    },
+    "mcts_lang": "python"
+
   },
   "alt2": {
     "model": {
@@ -273,6 +276,7 @@
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
       "mixed_value_threshold": 20000.0
-    }
+    },
+    "mcts_lang": "python"
   }
 }
