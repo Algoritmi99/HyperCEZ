@@ -9,7 +9,7 @@
 import numpy as np
 import torch
 from torch.cuda.amp import autocast as autocast
-from hypercez.util import mcts_lang
+from hypercez.util.args import mcts_lang
 
 if mcts_lang == "Cython":
     from hypercez.ezv2.mcts.ctree_v2 import cytree as tree2
