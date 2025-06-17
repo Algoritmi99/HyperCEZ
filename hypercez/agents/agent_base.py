@@ -1,4 +1,10 @@
 import copy
+from enum import IntEnum
+
+
+class ActType(IntEnum):
+    INITIAL = 0
+    RECURRENT = 1
 
 
 class Agent:
@@ -12,7 +18,7 @@ class Agent:
         self.input_shape = None
         self.hparams = hparams
 
-    def act(self, state):
+    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         raise NotImplementedError
 
     def init_model(self):

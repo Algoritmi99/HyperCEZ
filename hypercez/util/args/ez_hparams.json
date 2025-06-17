@@ -78,7 +78,21 @@
       "IQL_weight": 0.7,
       "start_use_mix_training_steps": 30000.0,
       "mixed_value_threshold": 5000.0
-    }
+    },
+    "mcts": {
+      "num_simulations": 16,
+      "num_top_actions": 4,
+      "c_visit": 50,
+      "c_scale": 0.1,
+      "c_base": 19652,
+      "c_init": 1.25,
+      "dirichlet_alpha": 0.3,
+      "explore_frac": 0.25,
+      "value_minmax_delta": 0.01,
+      "vis": ["print"],
+      "mpc_horizon": 1,
+      "use_gumbel": true
+  }
   },
   "alt1": {
     "model": {
@@ -170,8 +184,19 @@
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
       "mixed_value_threshold": 20000.0
-    }
-
+    },
+    "mcts": {
+      "num_simulations": 32,
+      "num_top_actions": 16,
+      "num_sampled_actions": 16,
+      "c_visit": 50,
+      "c_scale": 0.1,
+      "value_minmax_delta": 0.01,
+      "mpc_horizon": 1,
+      "vis": ["print"],
+      "use_mppi": false,
+      "std_magnification": 3
+  }
   },
   "alt2": {
     "model": {
@@ -274,6 +299,18 @@
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
       "mixed_value_threshold": 20000.0
-    }
+    },
+    "mcts": {
+      "num_simulations": 32,
+      "num_top_actions": 16,
+      "num_sampled_actions": 16,
+      "c_visit": 50,
+      "c_scale": 0.1,
+      "value_minmax_delta": 0.01,
+      "mpc_horizon": 1,
+      "vis": ["print"],
+      "use_mppi": false,
+      "std_magnification": 3
+  }
   }
 }
