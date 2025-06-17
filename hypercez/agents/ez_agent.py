@@ -3,6 +3,8 @@ import math
 from enum import IntEnum
 
 import torch.nn as nn
+from torch.cuda.amp import autocast as autocast
+import torch
 
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.ezv2.mcts.mcts import MCTS
@@ -50,6 +52,14 @@ class EZAgent(Agent):
         self.value_policy_detach = hparams.model[
             "value_policy_detach"] if not agent_type == AgentType.DMC_STATE else None
         self.v_num = hparams.train["v_num"]
+        self.mcts = MCTS(
+            num_actions=self.control_dim if self.agent_type == AgentType.ATARI
+                else self.hparams.mcts["num_sampled_actions"],
+            discount=self.reward_discount,
+            env=self.hparams.env,
+            **self.hparams.mcts,
+            **self.hparams.model
+        )
 
     def init_model_atari(self):
         self.input_shape = copy.deepcopy(self.obs_shape)
@@ -319,12 +329,28 @@ class EZAgent(Agent):
         return init_map[self.agent_type]()
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
-        tree = MCTS(
-            num_actions=self.control_dim if self.agent_type == AgentType.ATARI
-                else self.hparams.mcts["num_sampled_actions"],
-            discount=self.reward_discount,
-            env=self.hparams.env,
-            **self.hparams.mcts,
-            **self.hparams.model
-        )
+        with torch.no_grad():
+            with autocast():
+                states, values, policies = self.model.initial_inference(obs)
 
+        if self.agent_type == AgentType.ATARI:
+            if self.hparams.mcts["use_gumbel"]:
+                r_values, r_policies, best_actions, _ = self.mcts.search(
+                    self.model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0
+                )
+            else:
+                r_values, r_policies, best_actions, _ = self.mcts.search_ori_mcts(
+                    self.model, states.shape[0], states, values, policies, use_noise=False
+                )
+        else:
+            r_values, r_policies, best_actions, _, _, _ = self.mcts.search_continuous(
+                self.model,
+                states.shape[0],
+                states,
+                values,
+                policies,
+                use_gumble_noise=False,
+                verbose=0,
+                add_noise=False
+            )
+        return r_values, r_policies, best_actions
