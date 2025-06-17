@@ -358,10 +358,6 @@ class MCTS(MCTS_base):
         # preparation
         # Node.set_static_attributes(self.discount, self.num_actions)  # set static parameters of MCTS
         # set root nodes for the batch
-        print("model:", type(model))
-        print("batch size:", type(batch_size))
-        print("root states:", type(root_states), root_states)
-        print("root policy:", type(root_policy_logits), root_policy_logits)
         roots = tree.Roots(batch_size, self.num_actions, self.num_simulations, self.discount)
         roots.prepare(root_values.tolist(), root_policy_logits.tolist(), self.num_actions)
         # save the min and max value of the tree nodes
@@ -498,12 +494,6 @@ class MCTS(MCTS_base):
                      'search best action -> \t\t {}'
                      ''.format(search_root_values[0], search_root_policies[0], search_best_actions[0]),
                      verbose=1, iteration_end=True)
-
-
-        print("search root values:", type(search_root_values), search_root_values)
-        print("search root policies:", type(search_root_policies), search_root_policies)
-        print("search best actions:", type(search_best_actions), search_best_actions)
-        print("mcts info:", type(mcts_info), mcts_info)
 
         return search_root_values, search_root_policies, search_best_actions, mcts_info
 
