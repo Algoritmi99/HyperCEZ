@@ -71,7 +71,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
                 The feedback matrix is stored in this class as a temporary
                 solution. In the future it will be moved somewhere else.
     """
-    def __init__(self, target_shapes, layers=[50, 100], verbose=True,
+    def __init__(self, target_shapes, layers=None, verbose=True,
                  te_dim=8, no_te_embs=False, activation_fn=torch.nn.ReLU(),
                  use_bias=True, no_weights=False, init_weights=None,
                  ce_dim=None, dropout_rate=-1, use_spectral_norm=False,
@@ -146,6 +146,8 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
         nn.Module.__init__(self)
         CLHyperNetInterface.__init__(self)
 
+        if layers is None:
+            layers = [50, 100]
         if use_spectral_norm:
             raise NotImplementedError('Spectral normalization not yet ' +
                                       'implemented for this hypernetwork type.')
