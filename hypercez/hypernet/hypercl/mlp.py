@@ -163,7 +163,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         verbose (bool): Whether to print information (e.g., the number of
             weights) during the construction of the network.
     """
-    def __init__(self, n_in=1, n_out=1, hidden_layers=[10, 10],
+    def __init__(self, n_in=1, n_out=1, hidden_layers=None,
                  activation_fn=torch.nn.ReLU(), use_bias=True, no_weights=False,
                  init_weights=None, dropout_rate=-1, use_spectral_norm=False,
                  use_batch_norm=False, bn_track_stats=True,
@@ -178,6 +178,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         nn.Module.__init__(self)
         MainNetInterface.__init__(self)
 
+        if hidden_layers is None:
+            hidden_layers = [10, 10]
         if use_spectral_norm:
             raise NotImplementedError('Spectral normalization not yet ' +
                                       'implemented for this network.')
