@@ -5,3 +5,6 @@ torchrl~=0.8.1
 setuptools~=80.9.0
 Cython~=3.1.2
 PyYAML~=6.0.2
+matplotlib~=3.10.3
+tensorboardX~=2.6.4
+mnist~=0.2.2
