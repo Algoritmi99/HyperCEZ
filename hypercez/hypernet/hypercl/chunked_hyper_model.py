@@ -76,7 +76,7 @@ class ChunkedHyperNetworkHandler(nn.Module, CLHyperNetInterface):
         ce_dim (int): The size of the chunk embeddings.
     """
     def __init__(self, target_shapes, chunk_dim=2586,
-                 layers=[50, 100], te_dim=8, activation_fn=torch.nn.ReLU(),
+                 layers=None, te_dim=8, activation_fn=torch.nn.ReLU(),
                  use_bias=True, no_weights=False, ce_dim=None,
                  init_weights=None, dropout_rate=-1, noise_dim=-1,
                  temb_std=-1):
@@ -85,6 +85,8 @@ class ChunkedHyperNetworkHandler(nn.Module, CLHyperNetInterface):
         nn.Module.__init__(self)
         CLHyperNetInterface.__init__(self)
 
+        if layers is None:
+            layers = [50, 100]
         assert(len(target_shapes) > 0)
         assert (init_weights is None or no_weights is False)
         assert(ce_dim is not None)
