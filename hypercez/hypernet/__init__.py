@@ -9,10 +9,10 @@ from hypercez.util.format import str_to_act
 
 class HNet_Type(IntEnum):
     CHUNKED = 0
-    UnChunked = 1
+    UnCHUNKED = 1
 
 
-def build_hnet(hparams: Hparams, model: nn.Module, hnet_type: HNet_Type = HNet_Type.UnChunked) -> nn.Module:
+def build_hnet(hparams: Hparams, model: nn.Module, hnet_type: HNet_Type = HNet_Type.UnCHUNKED) -> nn.Module:
     assert hasattr(hparams, "hnet_arch")
     assert hasattr(hparams, "hnet_act")
     assert hasattr(hparams, "emb_size")
