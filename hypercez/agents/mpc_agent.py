@@ -2,11 +2,11 @@ import numpy as np
 import torch
 
 from hypercez.agents.agent_base import Agent
-from hypercez.models.cem import CEM
-from hypercez.models.grad import GradPlan
-from hypercez.models.lqr import LQR
-from hypercez.models.manual import Manual
-from hypercez.models.mppi import MPPI, PDDM
+from hypercez.agents.control.cem import CEM
+from hypercez.agents.control.grad import GradPlan
+from hypercez.agents.control.lqr import LQR
+from hypercez.agents.control.manual import Manual
+from hypercez.agents.control.mppi import MPPI, PDDM
 
 
 def quat_mul(q0, q1):

@@ -8,18 +8,18 @@ import torch
 
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.ezv2.mcts.mcts import MCTS
-from hypercez.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
-from hypercez.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
-from hypercez.models.alt_model import RewardNetwork as AltRewardNetwork
-from hypercez.models.alt_model import RewardNetworkLSTM as AltRewardNetworkLSTM
-from hypercez.models.alt_model import ValuePolicyNetwork as AltValuePolicyNetwork
-from hypercez.models.base_model import DynamicsNetwork as BaseDynamicsNetwork
-from hypercez.models.base_model import ProjectionHeadNetwork as BaseProjectionHeadNetwork
-from hypercez.models.base_model import ProjectionNetwork as BaseProjectionNetwork
-from hypercez.models.base_model import RepresentationNetwork as BaseRepresentationNetwork
-from hypercez.models.base_model import SupportLSTMNetwork as BaseSupportLSTMNetwork
-from hypercez.models.base_model import SupportNetwork as BaseSupportNetwork
-from hypercez.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
+from hypercez.agents.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
+from hypercez.agents.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
+from hypercez.agents.models.alt_model import RewardNetwork as AltRewardNetwork
+from hypercez.agents.models.alt_model import RewardNetworkLSTM as AltRewardNetworkLSTM
+from hypercez.agents.models.alt_model import ValuePolicyNetwork as AltValuePolicyNetwork
+from hypercez.agents.models.base_model import DynamicsNetwork as BaseDynamicsNetwork
+from hypercez.agents.models.base_model import ProjectionHeadNetwork as BaseProjectionHeadNetwork
+from hypercez.agents.models.base_model import ProjectionNetwork as BaseProjectionNetwork
+from hypercez.agents.models.base_model import RepresentationNetwork as BaseRepresentationNetwork
+from hypercez.agents.models.base_model import SupportLSTMNetwork as BaseSupportLSTMNetwork
+from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwork
+from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
 from hypercez.util.format import DiscreteSupport
 
