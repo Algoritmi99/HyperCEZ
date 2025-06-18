@@ -1,1 +1,1 @@
-from .models import EfficientZero as EZ_Model
+from hypercez.models import EfficientZero as EZ_Model
