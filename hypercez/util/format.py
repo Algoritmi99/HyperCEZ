@@ -364,3 +364,26 @@ def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
+
+def str_to_act(act_str):
+    """Convert the name of an activation function into the actual PyTorch
+    activation function.
+
+    Args:
+        act_str: Name of activation function (as defined by command-line
+            arguments).
+
+    Returns:
+        Torch activation function instance or ``None``, if ``linear`` is given.
+    """
+    if act_str == 'linear':
+        act = None
+    elif act_str == 'sigmoid':
+        act = torch.nn.Sigmoid()
+    elif act_str == 'relu':
+        act = torch.nn.ReLU()
+    elif act_str == 'elu':
+        act = torch.nn.ELU()
+    else:
+        raise Exception('Activation function %s unknown.' % act_str)
+    return act

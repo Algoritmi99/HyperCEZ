@@ -1,13 +1,11 @@
-from hypercez.util.args import mcts_lang
-
-
-def idk(**kwargs):
-    print(kwargs.get("here"))
+from hypercez.hypernet.hypercl import MLP
 
 
 def main():
-    print(mcts_lang)
-    idk()
+    mlp = MLP()
+    print(mlp.param_shapes)
+
+    print([list(i.shape) for i in mlp.parameters()])
 
 if __name__ == "__main__":
     main()
