@@ -65,13 +65,16 @@ class DiscreteSupport(object):
     def __init__(self, hparams=None):
         if hparams:
             # assert min < max
-            self.env = hparams.env.env
-            if self.env in ['DMC', 'Gym']:
-                assert hparams.model.reward_support.bins == hparams.model.value_support.bins
-                self.size = hparams.model.reward_support.bins
+            self.env = hparams.env
+            # if self.env in ['DMC', 'Gym']:
+            if True:
+                assert hparams.model["reward_support"]["bins"] == hparams.model["value_support"]["bins"]
+                self.size = hparams.model["reward_support"]["bins"]
             else:
                 self.value_support = hparams.model["value_support"]
+                print(self.value_support)
                 self.reward_support = hparams.model["reward_support"]
+                print(self.reward_support)
                 assert self.reward_support["range"][0] == self.value_support["range"][0]
                 assert self.reward_support["range"][1] == self.value_support["range"][1]
                 assert self.reward_support["scale"] == self.value_support["scale"]

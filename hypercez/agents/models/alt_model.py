@@ -132,8 +132,6 @@ def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, 
 class RunningMeanStd(nn.Module):
     def __init__(self, shape, epsilon=1e-5, momentum=0.1):
         super(RunningMeanStd, self).__init__()
-        self.running_var = None
-        self.running_mean = None
         self.epsilon = epsilon
         self.momentum = momentum
         self.count = 1e3

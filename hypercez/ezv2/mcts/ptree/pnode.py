@@ -2,8 +2,8 @@ import math
 
 import numpy as np
 
-from ez.mcts.ptree.pminimax import PMinMaxStats, PMinMaxStatsList
-from ez.utils.format import softmax
+from hypercez.ezv2.mcts.ptree.pminimax import PMinMaxStats, PMinMaxStatsList
+from hypercez.util.format import softmax
 
 
 def get_transformed_completed_Qs(node: 'PNode', min_max_stats: PMinMaxStats, final: bool) -> list[float]:

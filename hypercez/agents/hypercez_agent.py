@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+import torch
 import torch.nn as nn
 
 from hypercez.agents import EZAgent
@@ -51,4 +52,14 @@ class HyperCEZAgent(Agent):
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert task_id is not None
+        for hnet_name in self.hnet_items:
+            new_weights = self.hnet_map[hnet_name](task_id)
+            with torch.no_grad():
+                for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
+                    assert p.shape == w.shape
+                    p.copy_(w)
 
+            for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
+                assert torch.equal(p, w)
+
+        return self.ez_agent.act(obs, task_id, act_type)
