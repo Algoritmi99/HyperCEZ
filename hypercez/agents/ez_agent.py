@@ -328,6 +328,11 @@ class EZAgent(Agent):
         }
         return init_map[self.agent_type]()
 
+    def get_model(self, model_name: str = None):
+        if model_name is None:
+            return self.model
+        return self.model.__getattr__(model_name)
+
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         with torch.no_grad():
             with autocast():
