@@ -2,6 +2,7 @@ from enum import IntEnum
 
 import torch
 import torch.nn as nn
+from sympy import hermite_poly
 
 from hypercez.agents import EZAgent
 from hypercez.agents.agent_base import Agent, ActType
@@ -42,11 +43,16 @@ class HyperCEZAgent(Agent):
             )
         if self.hnet_map is None:
             assert len(self.hnet_items) > 0, "either hnet_map or hnet_items should be provided!"
-            self.hnet_map = {
-                i: build_hnet(
+            self.hnet_map = {}
+            for i in self.hnet_items:
+                hnet = build_hnet(
                     hparams=self.hparams,
                     model=self.ez_agent.get_model(i[0])
-                ) for i in self.hnet_items}
+                )
+                for task in range(self.hparams.num_tasks):
+                    hnet.add_task(task, self.hparams.std_normal_temb)
+                self.hnet_map[i] = hnet
+
 
         assert self.ez_agent is not None and self.hnet_map is not None
 

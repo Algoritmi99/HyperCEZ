@@ -231,8 +231,9 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
                 if not self._no_te_embs else 0
         self._num_weights = ntheta + ntembs
 
-        self._num_outputs = MainNetInterface.shapes_to_num_weights( \
-            self.target_shapes)
+        self._num_outputs = MainNetInterface.shapes_to_num_weights(
+            self.target_shapes
+        )
         
         # The task embeddings are initialized differently.
         torch.nn.init.normal_(self._task_embs[-1], mean=0., std=std_normal_temb)
