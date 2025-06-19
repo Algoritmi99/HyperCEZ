@@ -25,8 +25,27 @@ class HyperCEZAgent(Agent):
                  collector=None,
                  ctrl_type=AgentCtrlType.CONTINUOUS,
                  *args: str,
-                 **kwargs
                  ):
+        """
+        An EfficientZeroV2 agent that uses hypernetworks for continual learning on each of its components.
+
+        The keys of hnet_map or the strings provided as *args can include one or more of the following:
+        [
+            "representation_model",
+            "dynamics_model",
+            "reward_prediction_model",
+            "value_policy_model",
+            "projection_model",
+            "projection_head_model"
+        ]
+        :param hparams: HParams object with added values
+        :param ez_agent: EZAgent object correctly initialized
+        :param hnet_map: a map with keys being one of the names mentioned above or "all" and values being nn.Module objects
+        :param envs:
+        :param collector:
+        :param ctrl_type: Specifies the type of controller to be used (img based, discrete or continuous)
+        :param args: a listing of names of agent including one or more of the names listed above or "all", to create hnets for if hnet_map is not provided.
+        """
         super().__init__(hparams)
         self.ez_agent = ez_agent
         self.hnet_map = hnet_map
@@ -47,7 +66,7 @@ class HyperCEZAgent(Agent):
             for i in self.hnet_component_names:
                 hnet = build_hnet(
                     hparams=self.hparams,
-                    model=self.ez_agent.get_model(i[0])
+                    model=self.ez_agent.get_model(i)
                 )
                 for task in range(self.hparams.num_tasks):
                     hnet.add_task(task, self.hparams.std_normal_temb)
