@@ -33,7 +33,7 @@ class HyperCEZAgent(Agent):
         self.envs = envs
         self.collector = collector
         self.control_type = ctrl_type
-        self.hnet_items = list(args) if hnet_map is None else list(hnet_map.keys())
+        self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
 
     def init_model(self):
         if self.ez_agent is None:
@@ -42,9 +42,9 @@ class HyperCEZAgent(Agent):
                 AgentType(self.control_type.value)
             )
         if self.hnet_map is None:
-            assert len(self.hnet_items) > 0, "either hnet_map or hnet_items should be provided!"
+            assert len(self.hnet_component_names) > 0, "either hnet_map or hnet_items should be provided!"
             self.hnet_map = {}
-            for i in self.hnet_items:
+            for i in self.hnet_component_names:
                 hnet = build_hnet(
                     hparams=self.hparams,
                     model=self.ez_agent.get_model(i[0])
@@ -58,7 +58,7 @@ class HyperCEZAgent(Agent):
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert task_id is not None
-        for hnet_name in self.hnet_items:
+        for hnet_name in self.hnet_component_names:
             new_weights = self.hnet_map[hnet_name](task_id)
             with torch.no_grad():
                 for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
