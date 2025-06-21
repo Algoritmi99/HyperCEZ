@@ -2,7 +2,6 @@ from enum import IntEnum
 
 import torch
 import torch.nn as nn
-from sympy import hermite_poly
 
 from hypercez.agents import EZAgent
 from hypercez.agents.agent_base import Agent, ActType
