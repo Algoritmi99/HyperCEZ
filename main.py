@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
 # TODO:
 #   1. train file that trains an arbitrary agent and resembles the HyperCRL trainer from outside
-#   and EZV2 trainer from inside for the agent.
+#   and EfficientZeroV2 trainer from inside for the agent.
 #       --> An idea is object oriented training subroutines within the agent class of each agent.
 #   2. a run script that starts the training routine for any given parameters (Agent, Env, etc.)
 #   3. The main file must take parameters and serve as the API for the entire program
