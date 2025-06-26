@@ -6,3 +6,5 @@ setuptools~=80.9.0
 Cython~=3.1.2
 PyYAML~=6.0.2
 matplotlib~=3.10.3
+gymnasium[mujoco]
+scipy~=1.16.0

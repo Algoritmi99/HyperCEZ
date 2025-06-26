@@ -1,4 +1,5 @@
 import torch
+from torchrl.envs import GymEnv
 
 from hypercez import Hparams
 from hypercez.agents import EZAgent
@@ -8,6 +9,8 @@ from hypercez.hypernet import build_hnet
 
 def main():
     hparams = Hparams("pendulum")
+    print(hparams.num_tasks)
+
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
@@ -32,6 +35,15 @@ def main():
 
     for p, w in zip(ez_agent.model.dynamics_model.parameters(), new_weights):
         assert torch.equal(p, w)
+
+    print(hparams.num_tasks)
+
+    env = GymEnv("Pendulum-v1")
+    print(env.observation_space)
+    print(env.action_space)
+
+    print(hparams.init_rand_steps)
+
 
 
 if __name__ == "__main__":
