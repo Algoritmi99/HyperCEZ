@@ -2,7 +2,7 @@ import os
 import tempfile
 
 import numpy as np
-from gymnasium import utils
+from gymnasium import utils, spaces
 from gymnasium.envs.mujoco import MujocoEnv
 
 import xml.etree.ElementTree as ET
@@ -121,9 +121,19 @@ class CartpoleLengthEnv(CartpoleEnv, utils.EzPickle):
         # Proper EzPickle call for Gymnasium
         utils.EzPickle.__init__(self, body_parts, length, *args, **kwargs)
 
+        dummy_obs = self._get_obs()
+
+        # Infer the shape & dtype
+        low = -np.inf * np.ones_like(dummy_obs, dtype=np.float32)
+        high = np.inf * np.ones_like(dummy_obs, dtype=np.float32)
+
+        self.observation_space = spaces.Box(low=low, high=high, dtype=dummy_obs.dtype.type)
+
 
 if __name__ == "__main__":
     env = CartpoleLengthEnv(length=1.2, render_mode='human')
+    print(env.observation_space)
+    print(env.action_space)
     env.reset()
     while True:
         env.render()

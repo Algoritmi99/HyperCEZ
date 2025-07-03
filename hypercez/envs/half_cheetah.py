@@ -1,5 +1,5 @@
 import numpy as np
-from gymnasium import utils
+from gymnasium import utils, spaces
 from gymnasium.envs.mujoco import MujocoEnv
 
 
@@ -15,6 +15,15 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
             observation_space=None,  # auto-computed from _get_obs()
             render_mode=render_mode,
         )
+
+        self.reset_model()
+        dummy_obs = self._get_obs()
+
+        # Infer the shape & dtype
+        low = -np.inf * np.ones_like(dummy_obs, dtype=np.float32)
+        high = np.inf * np.ones_like(dummy_obs, dtype=np.float32)
+
+        self.observation_space = spaces.Box(low=low, high=high, dtype=dummy_obs.dtype.type)
 
     def step(self, action):
         self.xposbefore = self.data.qpos[0]  # self.data is a shortcut to self.mujoco_sim.data
@@ -59,6 +68,8 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
 
 if __name__ == "__main__":
     env = HalfCheetahEnv(render_mode='human')
+    print(env.observation_space)
+    print(env.action_space)
     env.reset()
     while True:
         env.render()
