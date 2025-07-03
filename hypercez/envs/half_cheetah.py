@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 from gymnasium import utils
 from gymnasium.envs.mujoco import MujocoEnv

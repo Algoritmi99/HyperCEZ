@@ -170,7 +170,6 @@ class CLEnvLoader:
             rot = R.from_euler('zxz', Rots[task_id], degrees=True)
             g = rot.apply(np.array([0, 0, -9.81]))
             env.unwrapped.model.opt.gravity[:] = g
-            print(env.model.opt.gravity)
         elif self.cl_env == "inverted_pendulum_bin":
             env = TimeLimit(InvertedPendulumBin(INVERTED_PENDULUM_BIN_ENVS[task_id]), 1000)
         elif self.cl_env == "cartpole_bin":
