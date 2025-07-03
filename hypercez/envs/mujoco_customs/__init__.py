@@ -1,6 +1,7 @@
 import os
 
-import gymnasium as gym
+import gymnasium.envs.mujoco
+import gymnasium
 
 
 custom_envs = {
@@ -142,7 +143,7 @@ custom_envs = {
         dict(path='hypercez.envs.mujoco_customs.modified_hopper:HopperWithSensorEnv',
              max_episode_steps=1000,
              reward_threshold=3800.0,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/hopper.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/hopper.xml")),
     "Walker2dWall-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_walker2d:Walker2dWallEnv',
              max_episode_steps=1000,
@@ -150,7 +151,7 @@ custom_envs = {
     "Walker2dWithSensor-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_walker2d:Walker2dWithSensorEnv',
              max_episode_steps=1000,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/walker2d.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/walker2d.xml")),
     "HalfCheetahWall-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_half_cheetah:HalfCheetahWallEnv',
              max_episode_steps=1000,
@@ -160,7 +161,7 @@ custom_envs = {
         dict(path='hypercez.envs.mujoco_customs.modified_half_cheetah:HalfCheetahWithSensorEnv',
              max_episode_steps=1000,
              reward_threshold=4800.0,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/half_cheetah.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/half_cheetah.xml")),
     "HumanoidWall-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidWallEnv',
              max_episode_steps=1000,
@@ -168,11 +169,11 @@ custom_envs = {
     "HumanoidWithSensor-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidWithSensorEnv',
              max_episode_steps=1000,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/humanoid.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/humanoid.xml")),
     "HumanoidStandupWithSensor-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidStandupWithSensorEnv',
              max_episode_steps=1000,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/humanoidstandup.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/humanoidstandup.xml")),
     "HumanoidStandupAndRunWall-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidStandupAndRunWallEnv',
              max_episode_steps=1000,
@@ -180,7 +181,7 @@ custom_envs = {
     "HumanoidStandupAndRunWithSensor-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidStandupAndRunEnvWithSensor',
              max_episode_steps=1000,
-             kwargs=dict(model_path=os.path.dirname(gym.envs.mujoco.__file__) + "/assets/humanoidstandup.xml")),
+             kwargs=dict(model_path=os.path.dirname(gymnasium.envs.mujoco.__file__) + "/assets/humanoidstandup.xml")),
     "HumanoidStandupAndRun-v0":
         dict(path='hypercez.envs.mujoco_customs.modified_humanoid:HumanoidStandupAndRunEnv',
              max_episode_steps=1000,
@@ -432,7 +433,7 @@ def register_custom_envs():
         if "reward_threshold" in value:
             arg_dict["reward_threshold"] = value["reward_threshold"]
 
-        gym.envs.register(**arg_dict)
+        gymnasium.envs.register(**arg_dict)
 
 
 register_custom_envs()

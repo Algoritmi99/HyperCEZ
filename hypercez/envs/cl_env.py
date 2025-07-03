@@ -151,38 +151,38 @@ class CLEnvLoader:
         elif self.cl_env == "lqr10":
             env = LQR_HARD(friction=0.5 * task_id)
         elif self.cl_env == "pendulum":
-            env = gym.make('Pendulum-v1')
+            env = gym.make('Pendulum-v1', render_mode='human' if render else None)
             env.unwrapped.g = 10 + task_id * 2
         elif self.cl_env == "pendulum2":
             gravity = [10, 0, 2, 8, 12, 5, 4, 14, 9, 7, 30]
-            env = gym.make('Pendulum-v1')
+            env = gym.make('Pendulum-v1', render_mode='human' if render else None)
             env.unwrapped.g = gravity[task_id]
         elif self.cl_env == "humanoid":
-            env = gym.make('Humanoid-5')
+            env = gym.make('Humanoid-5', render_mode='human' if render else None)
             rot = R.from_euler('zxz', Rots[task_id], degrees=True)
             g = rot.apply(np.array([0, 0, -9.81]))
             env.unwrapped.model.opt.gravity[:] = g
         elif self.cl_env == "hopper_body":
-            env = gym.make(HOPPER_ENVS[task_id])
+            env = gym.make(HOPPER_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "walker_body":
-            env = gym.make(WALKER_ENVS[task_id])
+            env = gym.make(WALKER_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "inverted_pendulum":
-            env = gym.make(INVERTED_PENDULUM_ENVS[task_id])
+            env = gym.make(INVERTED_PENDULUM_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "half_cheetah_body":
-            env = gym.make(CHEETAH_ENVS[task_id])
+            env = gym.make(CHEETAH_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "half_cheetah":
-            env = gym.make('MBRLHalfCheetah-v0')
+            env = gym.make('MBRLHalfCheetah-v0', render_mode='human' if render else None)
             rot = R.from_euler('zxz', Rots[task_id], degrees=True)
             g = rot.apply(np.array([0, 0, -9.81]))
             env.unwrapped.model.opt.gravity[:] = g
         elif self.cl_env == "inverted_pendulum_bin":
             env = TimeLimit(InvertedPendulumBin(INVERTED_PENDULUM_BIN_ENVS[task_id]), 1000)
         elif self.cl_env == "cartpole_bin":
-            env = gym.make(CARTPOLE_BIN_ENVS[task_id])
+            env = gym.make(CARTPOLE_BIN_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "cartpole":
-            env = gym.make(CARTPOLE_ENVS[task_id])
+            env = gym.make(CARTPOLE_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "reacher":
-            env = gym.make(REACHER_ENVS[task_id])
+            env = gym.make(REACHER_ENVS[task_id], render_mode='human' if render else None)
         elif self.cl_env == "pusher":
             from .robosuite_customs import PandaCL
             env = suite.make(env_name="PandaCL", density=PUSH_ENV[task_id], robots="Panda",
@@ -216,7 +216,7 @@ class CLEnvLoader:
                              pose_control=True, has_renderer=render)
             env = GymWrapper(env)
         if not self.cl_env.startswith("lqr"):
-            env.seed(self.seed)
+            env.reset(seed=self.seed)
 
         if not replica:
             self._envs.append(env)
@@ -225,4 +225,10 @@ class CLEnvLoader:
             return env
 
     def get_env(self, task_id) -> gym.Env:
-        pass
+        if self.cl_env == "metaworld10":
+            assert 10 > task_id >= 0
+            self._env_mt_world.set_task(0)
+            return TimeLimit(self._env_mt_world, 150)
+
+        assert len(self._envs) > task_id >= 0
+        return self._envs[task_id]

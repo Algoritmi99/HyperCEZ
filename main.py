@@ -6,13 +6,13 @@ import gymnasium as gym
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
-from hypercez.envs.cl_env import Rots
+from hypercez.envs.cl_env import Rots, CLEnvLoader
 from hypercez.hypernet import build_hnet
 from scipy.spatial.transform import Rotation as R
 
 
 def main():
-    hparams = Hparams("pendulum")
+    hparams = Hparams("half_cheetah")
     print(hparams.num_tasks)
 
     hparams.add_ez_hparams(2)
@@ -53,6 +53,14 @@ def main():
     rot = R.from_euler('zxz', Rots[2], degrees=True)
     g = rot.apply(np.array([0, 0, -9.81]))
     env.unwrapped.model.opt.gravity[:] = g
+
+    print(hparams.env)
+    cl_env = CLEnvLoader(hparams.env)
+    env = cl_env.add_task(0, render=True)
+
+    while True:
+        env.step(env.action_space.sample())
+        env.render()
 
 
 if __name__ == "__main__":

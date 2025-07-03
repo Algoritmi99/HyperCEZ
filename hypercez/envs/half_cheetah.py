@@ -4,8 +4,13 @@ from gymnasium.envs.mujoco import MujocoEnv
 
 
 class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
-    def __init__(self, render_mode=None):
+    metadata = {
+        "render_modes": ["human"],
+        "render_fps": 20
+    }
+    def __init__(self, **kwargs):
         self.xposbefore = None
+        render_mode = kwargs.get('render_mode', None)
 
         utils.EzPickle.__init__(self, render_mode)
 
