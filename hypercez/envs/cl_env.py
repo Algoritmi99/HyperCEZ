@@ -4,6 +4,11 @@ import gymnasium as gym
 import numpy as np
 
 from hypercez.envs.lqr import LQR_2DCar, LQR_HARD
+from hypercez.envs.mujoco_customs.modified_invertedpendulum import InvertedPendulumBin
+
+import robosuite as suite
+from robosuite.controllers import load_part_controller_config as load_controller_config
+from robosuite.wrappers import GymWrapper
 
 Rots = [
     [0, 0, 0],
@@ -139,7 +144,7 @@ class CLEnvLoader:
         self._envs = []
         self._env_mt_world = None
 
-    def add_task(self, task_id):
+    def add_task(self, task_id, render=False, replica=False):
         assert task_id <= len(self._envs)
         if self.cl_env == "lqr":
             env = LQR_2DCar(friction=0.5 * task_id)
@@ -179,32 +184,32 @@ class CLEnvLoader:
         elif self.cl_env == "reacher":
             env = gym.make(REACHER_ENVS[task_id])
         elif self.cl_env == "pusher":
-            from .rs import PandaCL
+            from .robosuite_customs import PandaCL
             env = suite.make(env_name="PandaCL", density=PUSH_ENV[task_id], robots="Panda",
                              controller_configs=load_controller_config(default_controller="OSC_POSITION"),
                              has_renderer=render)
             env = GymWrapper(env)
         # For openai GYM environments, we set seed and wrap with monitor
         elif self.cl_env == "pusher_rot":
-            from .rs import PandaRot
+            from .robosuite_customs import PandaRot
             env = suite.make(env_name="PandaRot", robots="Panda", start_poses=ROTATE_ENV[task_id],
                              controller_configs=load_controller_config(default_controller="OSC_POSITION"),
                              has_renderer=render)
             env = GymWrapper(env)
         elif self.cl_env == "pusher_slide":
-            from .rs import PandaSlide
+            from .robosuite_customs import PandaSlide
             env = suite.make(env_name="PandaSlide", robots="Panda", box2_friction=SLIDE_ENV[task_id],
                              controller_configs=load_controller_config(default_controller="OSC_POSITION"),
                              has_renderer=render)
             env = GymWrapper(env)
         elif self.cl_env == "door":
-            from .rs import PandaDoor
+            from .robosuite_customs import PandaDoor
             env = suite.make(env_name="PandaDoor", handle_type="pull", robots="Panda",
                              controller_configs=load_controller_config(default_controller="OSC_POSITION"),
                              has_renderer=render)
             env = GymWrapper(env)
         elif self.cl_env == "door_pose":
-            from .rs import PandaDoor
+            from .robosuite_customs import PandaDoor
             env = suite.make(env_name="PandaDoor", handle_type=DOOR_ENV[task_id][0],
                              joint_range=DOOR_ENV[task_id][1], robots="Panda",
                              controller_configs=load_controller_config(default_controller="OSC_POSE"),
