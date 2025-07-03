@@ -1,10 +1,14 @@
+import numpy as np
 import torch
 from torchrl.envs import GymEnv
+import gymnasium as gym
 
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
+from hypercez.envs.cl_env import Rots
 from hypercez.hypernet import build_hnet
+from scipy.spatial.transform import Rotation as R
 
 
 def main():
@@ -41,9 +45,14 @@ def main():
     env = GymEnv("Pendulum-v1")
     print(env.observation_space)
     print(env.action_space)
-
+    print(env.unwrapped.g)
     print(hparams.init_rand_steps)
 
+    env = gym.make('Humanoid-v5')
+    print(env.unwrapped.model.opt.gravity)
+    rot = R.from_euler('zxz', Rots[2], degrees=True)
+    g = rot.apply(np.array([0, 0, -9.81]))
+    env.unwrapped.model.opt.gravity[:] = g
 
 
 if __name__ == "__main__":
