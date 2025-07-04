@@ -12,3 +12,4 @@ six~=1.17.0
 pyrr~=0.10.3
 robosuite~=1.5.1
 gymnasium[classic_control]
+h5py~=3.14.0
