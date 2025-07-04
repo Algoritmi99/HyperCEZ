@@ -23,3 +23,15 @@ class Agent:
 
     def init_model(self):
         raise NotImplementedError
+
+    def train(self):
+        raise NotImplementedError
+
+    def learn(self, dataset, task_id: int):
+        raise NotImplementedError
+
+    def reset(self):
+        pass
+
+    def eval(self):
+        raise NotImplementedError
