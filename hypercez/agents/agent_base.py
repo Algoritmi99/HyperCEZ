@@ -17,6 +17,7 @@ class Agent:
         self.model = None
         self.input_shape = None
         self.hparams = hparams
+        self.training_mode = False
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         raise NotImplementedError
@@ -27,7 +28,7 @@ class Agent:
     def train(self):
         raise NotImplementedError
 
-    def learn(self, dataset, task_id: int):
+    def learn(self, task_id: int):
         raise NotImplementedError
 
     def reset(self):
@@ -35,3 +36,6 @@ class Agent:
 
     def eval(self):
         raise NotImplementedError
+
+    def collect(self, x_t, u_t, reward, x_tt, task_id):
+        pass

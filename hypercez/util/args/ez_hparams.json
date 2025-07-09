@@ -77,7 +77,11 @@
       "use_IQL": false,
       "IQL_weight": 0.7,
       "start_use_mix_training_steps": 30000.0,
-      "mixed_value_threshold": 5000.0
+      "mixed_value_threshold": 5000.0,
+      "unroll_steps": 5,
+      "td_steps": 5,
+      "auto_td_steps": 30000,
+      "td_lambda": 0.95
     },
     "mcts": {
       "num_simulations": 16,
@@ -92,6 +96,16 @@
       "vis": ["print"],
       "mpc_horizon": 1,
       "use_gumbel": true
+  },
+    "optimizer": {
+      "type": "SGD",
+      "lr": 0.2,
+      "lr_decay_type": "none",
+      "lr_warm_up": 0.01,
+      "lr_decay_rate": 0.1,
+      "lr_decay_steps": 100000,
+      "weight_decay": 0.0001,
+      "momentum": 0.9
   }
   },
   "alt1": {
@@ -183,7 +197,11 @@
       "use_IQL": false,
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
-      "mixed_value_threshold": 20000.0
+      "mixed_value_threshold": 20000.0,
+      "unroll_steps": 5,
+      "td_steps": 5,
+      "auto_td_steps": 30000,
+      "td_lambda": 0.95
     },
     "mcts": {
       "num_simulations": 32,
@@ -196,7 +214,17 @@
       "vis": ["print"],
       "use_mppi": false,
       "std_magnification": 3
-  }
+  },
+    "optimizer": {
+      "type": "SGD",
+      "lr": 0.2,
+      "lr_warm_up": 0.01,
+      "lr_decay_type": "none",
+      "lr_decay_rate": 0.1,
+      "lr_decay_steps": 100000,
+      "weight_decay": 0.0001,
+      "momentum": 0.9
+    }
   },
   "alt2": {
     "model": {
@@ -298,7 +326,11 @@
       "use_IQL": false,
       "IQL_weight": 0.5,
       "start_use_mix_training_steps": 40000.0,
-      "mixed_value_threshold": 20000.0
+      "mixed_value_threshold": 20000.0,
+      "unroll_steps": 5,
+      "td_steps": 5,
+      "auto_td_steps": 60000,
+      "td_lambda": 0.95
     },
     "mcts": {
       "num_simulations": 32,
@@ -311,6 +343,16 @@
       "vis": ["print"],
       "use_mppi": false,
       "std_magnification": 3
+    },
+    "optimizer": {
+      "type": "Adam",
+      "lr": 0.0003,
+      "lr_warm_up": 0.01,
+      "lr_decay_type": "none",
+      "lr_decay_rate": 0.1,
+      "lr_decay_steps": 300000,
+      "weight_decay": 0.00002,
+      "momentum": 0.9
     }
   }
 }

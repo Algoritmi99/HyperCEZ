@@ -86,3 +86,5 @@ class HyperCEZAgent(Agent):
             for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                 assert torch.equal(p, w)
         return self.ez_agent.act(obs, task_id, act_type)
+
+

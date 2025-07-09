@@ -13,6 +13,7 @@ class Trainer:
         self.collector = DataCollector(self.hparams)
 
     def train(self, dynamic_iters: int):
+        self.agent.train()
         for task_id in range(self.hparams.num_tasks):
             # random acting to collect data
             rand_pi = RandomAgent(self.hparams)
@@ -21,7 +22,7 @@ class Trainer:
             for it in range(self.hparams.init_rand_steps):
                 u = rand_pi.act(x_t)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
-                self.collector.add(x_t, u, reward, x_tt, task_id)
+                self.agent.collect(x_t, u, reward, x_tt, task_id)
                 x_t = x_tt
                 if terminated or truncated:
                     x_t = env.reset()
@@ -32,13 +33,12 @@ class Trainer:
             for it in range(dynamic_iters):
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0 and it > 0:
-                    train_set, _ = self.collector.get_dataset(task_id)
-                    self.agent.learn(train_set, task_id)
+                    self.agent.learn(task_id)
 
                 # exploration
                 u_t = self.agent.act(x_t, task_id=task_id).detach().cpu().numpy()
                 x_tt, reward, terminated, truncated, info = env.step(u_t.reshape(env.action_space.shape))
-                self.collector.add(x_t, u_t, reward, x_tt, task_id)
+                self.agent.collect(x_t, u_t, reward, x_tt, task_id)
                 x_t = x_tt
 
                 if truncated or terminated:

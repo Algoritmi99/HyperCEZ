@@ -3,8 +3,11 @@ import math
 from enum import IntEnum
 
 import torch.nn as nn
+import torch.optim as optim
+from torch.cuda.amp import GradScaler as GradScaler
 from torch.cuda.amp import autocast as autocast
 import torch
+from torch.utils.tensorboard.summary import hparams
 
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.ezv2.mcts.mcts import MCTS
@@ -22,6 +25,7 @@ from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwo
 from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
 from hypercez.util.format import DiscreteSupport
+from hypercez.util.trajectory import GameTrajectory
 
 
 class AgentType(IntEnum):
@@ -33,6 +37,21 @@ class AgentType(IntEnum):
 class EZAgent(Agent):
     def __init__(self, hparams, agent_type: AgentType):
         super(EZAgent, self).__init__(hparams)
+        self.trained_steps = None
+        self.eval_counter = None
+        self.prev_eval_counter = None
+        self.eval_best_score = None
+        self.eval_score = None
+        self.transition_num = None
+        self.traj_num = None
+        self.self_play_return = None
+        self.recent_weights = None
+        self.step_count = None
+        self.scaler = None
+        self.scheduler = None
+        self.max_steps = None
+        self.optimizer = None
+        self.collector = None
         self.agent_type = agent_type
         hparams.add_ez_hparams(agent_type.value)
         self.num_blocks = hparams.model["num_blocks"]
@@ -358,4 +377,79 @@ class EZAgent(Agent):
                 verbose=0,
                 add_noise=False
             )
+
+        if self.training_mode:
+            self.collector.store_search_results(values, r_values, r_policies)
         return r_values, r_policies, best_actions
+
+    def train(self):
+        if self.hparams.optimizer["type"] == 'SGD':
+            self.optimizer = optim.SGD(self.model.parameters(),
+                                  lr=self.hparams.optimizer["lr"],
+                                  weight_decay=self.hparams.optimizer["weight_decay"],
+                                  momentum=self.hparams.optimizer["momentum"])
+        elif self.hparams.optimizer["type"] == 'Adam':
+            self.optimizer = optim.Adam(self.model.parameters(),
+                                   lr=self.hparams.optimizer["lr"],
+                                   weight_decay=self.hparams.optimizer["weight_decay"])
+        elif self.hparams.optimizer["type"] == 'AdamW':
+            self.optimizer = optim.AdamW(self.model.parameters(),
+                                    lr=self.hparams.optimizer["lr"],
+                                    weight_decay=self.hparams.optimizer["weight_decay"])
+        else:
+            raise NotImplementedError
+
+        if self.hparams.optimizer["lr_decay_type"] == 'cosine':
+            self.max_steps = self.hparams.train["training_steps"] - int(
+                self.hparams.train["training_steps"] * self.hparams.optimizer["lr_warm_up"]
+            )
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.max_steps * 3, eta_min=0
+            )
+        elif self.hparams.optimizer["lr_decay_type"] == 'full_cosine':
+            self.max_steps = self.hparams.train["training_steps"] - int(
+                self.hparams.train["training_steps"] * self.hparams.optimizer["lr_warm_up"]
+            )
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.max_steps // 2, eta_min=0
+            )
+        else:
+            self.scheduler = None
+
+        self.scaler = GradScaler()
+        self.step_count = 0
+        self.recent_weights = self.model.get_weights()
+        self.self_play_return = 0.
+        self.traj_num, self.transition_num = 0, 0
+        self.eval_score, self.eval_best_score = 0., 0.
+        self.prev_eval_counter = -1
+        self.eval_counter = 0
+        self.trained_steps = 0
+
+        self.collector = GameTrajectory(
+            n_stack=1,
+            discount=self.hparams.reward_discount,
+            obs_to_string=False,
+            gray_scale=False,
+            unroll_steps=self.hparams.train["unroll_steps"],
+            td_steps=self.hparams.train["td_steps"],
+            td_lambda=self.hparams.train["td_lambda"],
+            obs_shape=self.hparams.state_dim,
+            max_size=100,
+            image_based=self.agent_type == AgentType.ATARI or self.agent_type == AgentType.DMC_IMAGE,
+            episodic=False,
+            GAE_max_steps=self.hparams.model["GAE_max_steps"]
+        )
+
+        self.training_mode = True
+
+    def collect(self, x_t, u_t, reward, x_tt, task_id):
+        assert self.training_mode, "collection only in training mode!"
+        self.collector.append(u_t, x_tt, reward)
+
+    def learn(self, task_id: int):
+        assert self.optimizer is not None, "The agent must be in training mode. try train()!"
+        recent_weights = self.model.get_weights()
+
+
+
