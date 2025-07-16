@@ -42,7 +42,8 @@
       "projection_head_layers": [
         256,
         1024
-      ]
+      ],
+      "n_stack": 4
     },
     "train": {
       "load_model_path": "",
@@ -106,7 +107,22 @@
       "lr_decay_steps": 100000,
       "weight_decay": 0.0001,
       "momentum": 0.9
-  }
+  },
+    "data": {
+      "num_envs": 4,
+      "buffer_size": 1000000,
+      "total_transitions": 100000,
+      "top_transitions": 200000.0,
+      "trajectory_size": 400,
+      "save_video": false,
+      "save_as_dataset": false
+    },
+    "priority": {
+      "use_priority": true,
+      "priority_prob_alpha": 1.0,
+      "priority_prob_beta": 1.0,
+      "min_prior": 0.000001
+    }
   },
   "alt1": {
     "model": {
@@ -162,7 +178,8 @@
         "env": "DMC",
         "bins": 51,
         "type": "support"
-      }
+      },
+      "n_stack": 4
     },
     "train": {
       "load_model_path": "",
@@ -224,6 +241,21 @@
       "lr_decay_steps": 100000,
       "weight_decay": 0.0001,
       "momentum": 0.9
+    },
+    "data": {
+      "num_envs": 4,
+      "buffer_size": 200000,
+      "total_transitions": 200000,
+      "top_transitions": 200000.0,
+      "trajectory_size": 100,
+      "save_video": false,
+      "save_as_dataset": false
+    },
+    "priority": {
+      "use_priority": true,
+      "priority_prob_alpha": 1.0,
+      "priority_prob_beta": 1.0,
+      "min_prior": 0.000001
     }
   },
   "alt2": {
@@ -291,7 +323,8 @@
         "env": "DMC",
         "bins": 51,
         "type": "support"
-      }
+      },
+      "n_stack": 1
     },
     "train": {
       "load_model_path": "",
@@ -353,6 +386,21 @@
       "lr_decay_steps": 300000,
       "weight_decay": 0.00002,
       "momentum": 0.9
+    },
+    "data": {
+      "num_envs": 4,
+      "buffer_size": 100000,
+      "total_transitions": 100000,
+      "top_transitions": 200000.0,
+      "trajectory_size": 100,
+      "save_video": false,
+      "save_as_dataset": false
+    },
+    "priority": {
+      "use_priority": true,
+      "priority_prob_alpha": 1.0,
+      "priority_prob_beta": 1.0,
+      "min_prior": 0.000001
     }
   }
 }

@@ -171,7 +171,7 @@ class MPC(Agent):
             return xx_gt
         return xx
 
-    def reset(self):
+    def reset(self, obs):
         self.control.reset()
 
     def act(self, state, task_id=None, first_action=True):

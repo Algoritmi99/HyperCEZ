@@ -22,6 +22,9 @@ class Agent:
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         raise NotImplementedError
 
+    def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        raise NotImplementedError
+
     def init_model(self):
         raise NotImplementedError
 
@@ -31,11 +34,11 @@ class Agent:
     def learn(self, task_id: int):
         raise NotImplementedError
 
-    def reset(self):
-        pass
-
     def eval(self):
         raise NotImplementedError
 
-    def collect(self, x_t, u_t, reward, x_tt, task_id):
+    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
+        pass
+
+    def reset(self, obs):
         pass

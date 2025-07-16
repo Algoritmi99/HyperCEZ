@@ -1,16 +1,17 @@
 import copy
 import math
 from enum import IntEnum
+from collections import deque
 
+import numpy as np
+import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.cuda.amp import GradScaler as GradScaler
 from torch.cuda.amp import autocast as autocast
-import torch
-from torch.utils.tensorboard.summary import hparams
+from torch.nn import L1Loss
 
 from hypercez.agents.agent_base import Agent, ActType
-from hypercez.ezv2.mcts.mcts import MCTS
 from hypercez.agents.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
 from hypercez.agents.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
 from hypercez.agents.models.alt_model import RewardNetwork as AltRewardNetwork
@@ -24,7 +25,9 @@ from hypercez.agents.models.base_model import SupportLSTMNetwork as BaseSupportL
 from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwork
 from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
-from hypercez.util.format import DiscreteSupport
+from hypercez.ezv2.mcts.mcts import MCTS
+from hypercez.util.format import DiscreteSupport, formalize_obs_lst
+from hypercez.util.replay_buffer import ReplayBuffer
 from hypercez.util.trajectory import GameTrajectory
 
 
@@ -51,8 +54,13 @@ class EZAgent(Agent):
         self.scheduler = None
         self.max_steps = None
         self.optimizer = None
-        self.collector = None
+        self.pool_size = 1
+        self.collector: GameTrajectory | None = None
+        self.traj_pool : list | None = None
+        self.replay_buffer: ReplayBuffer | None = None
+        self.prev_traj = None
         self.agent_type = agent_type
+        self.stacked_obs = deque(maxlen=hparams.model["stacked_obs"])
         hparams.add_ez_hparams(agent_type.value)
         self.num_blocks = hparams.model["num_blocks"]
         self.num_channels = hparams.model[
@@ -81,7 +89,11 @@ class EZAgent(Agent):
         )
 
     def init_model_atari(self):
-        self.input_shape = copy.deepcopy(self.obs_shape)
+        if isinstance(self.obs_shape, int):
+            self.input_shape = copy.deepcopy(self.obs_shape) * self.hparams.model["n_stack"]
+        else:
+            self.input_shape = copy.deepcopy(self.obs_shape)
+            self.input_shape[0] *= self.hparams.model["n_stack"]
         if self.down_sample:
             state_shape = (self.num_channels, math.ceil(self.obs_shape[1] / 16), math.ceil(self.obs_shape[2] / 16))
         else:
@@ -165,6 +177,11 @@ class EZAgent(Agent):
         return self.model
 
     def init_model_dmc_image(self):
+        if isinstance(self.obs_shape, int):
+            self.input_shape = copy.deepcopy(self.obs_shape) * self.hparams.model["n_stack"]
+        else:
+            self.input_shape = copy.deepcopy(self.obs_shape)
+            self.input_shape[0] *= self.hparams.model["n_stack"]
         if self.down_sample:
             state_shape = (self.num_channels, math.ceil(self.obs_shape[1] / 16), math.ceil(self.obs_shape[2] / 16))
         else:
@@ -257,7 +274,7 @@ class EZAgent(Agent):
     def init_model_dmc_state(self):
         representation_model = AltRepresentationNetwork(
             self.obs_shape,
-            1,
+            self.hparams.model["n_stack"],
             self.num_blocks,
             self.hparams.model["rep_net_shape"],
             self.hparams.model["hidden_shape"],
@@ -347,15 +364,44 @@ class EZAgent(Agent):
         }
         return init_map[self.agent_type]()
 
+    def reset(self, obs):
+        self.stacked_obs = deque(
+            [obs for _ in range(self.hparams.model["n_stacked"])], maxlen=self.hparams.model["n_stacked"]
+        )
+        self.prev_traj = None
+        self.collector = GameTrajectory(
+            n_stack=1,
+            discount=self.hparams.reward_discount,
+            obs_to_string=False,
+            gray_scale=False,
+            unroll_steps=self.hparams.train["unroll_steps"],
+            td_steps=self.hparams.train["td_steps"],
+            td_lambda=self.hparams.train["td_lambda"],
+            obs_shape=self.hparams.state_dim,
+            max_size=100,
+            image_based=self.agent_type == AgentType.ATARI or self.agent_type == AgentType.DMC_IMAGE,
+            episodic=False,
+            GAE_max_steps=self.hparams.model["GAE_max_steps"],
+            trajectory_size=self.hparams.data["trajectory_size"]
+        )
+
     def get_model(self, model_name: str = None):
         if model_name is None:
             return self.model
         return self.model.__getattr__(model_name)
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        self.stacked_obs.append(obs)
+        current_stacked_obs = formalize_obs_lst(
+            list(self.stacked_obs),
+            image_based=self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
+        )
+
         with torch.no_grad():
             with autocast():
-                states, values, policies = self.model.initial_inference(obs)
+                states, values, policies = self.model.initial_inference(current_stacked_obs)
+
+        values = values.detach().cpu().numpy().flatten()
 
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
@@ -381,6 +427,9 @@ class EZAgent(Agent):
         if self.training_mode:
             self.collector.store_search_results(values, r_values, r_policies)
         return r_values, r_policies, best_actions
+
+    def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        return self.act(obs, task_id, act_type)
 
     def train(self):
         if self.hparams.optimizer["type"] == 'SGD':
@@ -438,18 +487,135 @@ class EZAgent(Agent):
             max_size=100,
             image_based=self.agent_type == AgentType.ATARI or self.agent_type == AgentType.DMC_IMAGE,
             episodic=False,
-            GAE_max_steps=self.hparams.model["GAE_max_steps"]
+            GAE_max_steps=self.hparams.model["GAE_max_steps"],
+            trajectory_size=self.hparams.data["trajectory_size"]
         )
+
+        self.traj_pool = []
+
+        self.replay_buffer = ReplayBuffer(
+            batch_size=self.hparams.train["batch_size"],
+            buffer_size=self.hparams.data["buffer_size"],
+            top_transitions=self.hparams.data["top_transitions"],
+            use_priority=self.hparams.priority["use_priority"],
+            env=self.hparams.env,
+            total_transitions=self.hparams.data["total_transitions"]
+        )
+
+        self.prev_traj = None
 
         self.training_mode = True
 
-    def collect(self, x_t, u_t, reward, x_tt, task_id):
+    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
         assert self.training_mode, "collection only in training mode!"
         self.collector.append(u_t, x_tt, reward)
+        self.collector.snapshot_lst.append([])
+
+        if self.collector.is_full():
+            if self.prev_traj is not None:
+                self.save_previous_trajectory(self.prev_traj, self.collector)
+
+            self.prev_traj = self.collector
+            self.collector = GameTrajectory(
+                n_stack=1,
+                discount=self.hparams.reward_discount,
+                obs_to_string=False,
+                gray_scale=False,
+                unroll_steps=self.hparams.train["unroll_steps"],
+                td_steps=self.hparams.train["td_steps"],
+                td_lambda=self.hparams.train["td_lambda"],
+                obs_shape=self.hparams.state_dim,
+                max_size=100,
+                image_based=self.agent_type == AgentType.ATARI or self.agent_type == AgentType.DMC_IMAGE,
+                episodic=False,
+                GAE_max_steps=self.hparams.model["GAE_max_steps"],
+                trajectory_size=self.hparams.data["trajectory_size"]
+            )
+            self.collector.init(list(self.stacked_obs))
+
+        if done:
+            if self.prev_traj is not None:
+                self.save_previous_trajectory(self.prev_traj, self.collector)
+
+            if len(self.collector) > 0:
+                self.collector.pad_over([], [], [], [], [])
+                self.collector.save_to_memory()
+                self.put_trajs(self.collector)
+
+
+
+
+    def save_previous_trajectory(self, prev_traj, game_traj, padding=True):
+        """
+        put the previous game trajectory into the pool if the current trajectory is full
+        Parameters
+        ----------
+        :param prev_traj:
+            previous game trajectory
+        :param game_traj:
+            current game trajectory
+        :param padding:
+            Add padding
+        """
+        if padding:
+            # pad over last block trajectory
+            if self.hparams.model["value_target"] == 'bootstrapped':
+                gap_step = self.hparams.model["n_stack"] + self.hparams.train["td_steps"]
+            else:
+                extra = max(
+                    0,
+                    min(
+                        int(1 / (1 - self.hparams.train["td_lambda"])),
+                        self.hparams.model["GAE_max_steps"]
+                    ) - self.hparams.train["unroll_steps"] - 1
+                )
+                gap_step = self.hparams.model["n_stack"] + 1 + extra + 1
+
+            beg_index = self.hparams.model["n_stack"]
+            end_index = beg_index + self.hparams.train["unroll_steps"]
+
+            pad_obs_lst = game_traj.obs_lst[beg_index:end_index]
+
+            pad_policy_lst = game_traj.policy_lst[0:self.hparams.trian["unroll_steps"]]
+            pad_reward_lst = game_traj.reward_lst[0:gap_step - 1]
+            pad_pred_values_lst = game_traj.pred_value_lst[0:gap_step]
+            pad_search_values_lst = game_traj.search_value_lst[0:gap_step]
+
+            # pad over and save
+            prev_traj.pad_over(pad_obs_lst, pad_reward_lst, pad_pred_values_lst, pad_search_values_lst,
+                                          pad_policy_lst)
+        prev_traj.save_to_memory()
+        self.put_trajs(prev_traj)
+
+        # reset last block
+        prev_traj = None
+
+    def put_trajs(self, traj):
+        if self.hparams.priority["use_priority"]:
+            traj_len = len(traj)
+            pred_values = torch.from_numpy(np.array(traj.pred_value_lst)).cuda().float()
+            # search_values = torch.from_numpy(np.array(traj.search_value_lst)).cuda().float()
+            if self.hparams.model["value_target"] == 'bootstrapped':
+                target_values = torch.from_numpy(np.asarray(traj.get_bootstrapped_value())).cuda().float()
+            elif self.hparams.model["value_target"] == 'GAE':
+                target_values = torch.from_numpy(np.asarray(traj.get_gae_value())).cuda().float()
+            else:
+                raise NotImplementedError
+            priorities = L1Loss(
+                reduction='none'
+            )(
+                pred_values[:traj_len], target_values[:traj_len]
+            ).detach().cpu().numpy() + self.hparams.priority["min_prior"]
+        else:
+            priorities = None
+        self.traj_pool.append(traj)
+        # save the game histories and clear the pool
+        if len(self.traj_pool) >= self.pool_size:
+            self.replay_buffer.save_pools(self.traj_pool, priorities)
+            del self.traj_pool[:]
 
     def learn(self, task_id: int):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
-        recent_weights = self.model.get_weights()
 
 
 
