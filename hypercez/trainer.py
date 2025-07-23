@@ -13,7 +13,7 @@ class Trainer:
         self.collector = DataCollector(self.hparams)
 
     def train(self, dynamic_iters: int):
-        self.agent.train()
+        self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
         for task_id in range(self.hparams.num_tasks):
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
@@ -30,7 +30,7 @@ class Trainer:
 
             # trial and error
             x_t = env.reset()
-            self.agent.train()
+            self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
             self.agent.reset(x_t)
             for it in range(dynamic_iters):
                 # update when it's do

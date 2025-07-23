@@ -28,7 +28,7 @@ class Agent:
     def init_model(self):
         raise NotImplementedError
 
-    def train(self):
+    def train(self, total_train_steps):
         raise NotImplementedError
 
     def learn(self, task_id: int):

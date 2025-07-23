@@ -26,9 +26,41 @@ from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwo
 from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
 from hypercez.ezv2.mcts.mcts import MCTS
-from hypercez.util.format import DiscreteSupport, formalize_obs_lst
+from hypercez.util.format import DiscreteSupport, formalize_obs_lst, LinearSchedule, prepare_obs_lst
 from hypercez.util.replay_buffer import ReplayBuffer
 from hypercez.util.trajectory import GameTrajectory
+
+
+def concat_trajs(items, hparams, agent_type):
+    obs_lsts, reward_lsts, policy_lsts, action_lsts, pred_value_lsts, search_value_lsts, \
+        bootstrapped_value_lsts = items
+    traj_lst = []
+    for obs_lst, reward_lst, policy_lst, action_lst, pred_value_lst, search_value_lst, bootstrapped_value_lst in \
+            zip(obs_lsts, reward_lsts, policy_lsts, action_lsts, pred_value_lsts, search_value_lsts,
+                bootstrapped_value_lsts):
+        # traj = GameTrajectory(**self.config.env, **self.config.rl, **self.config.model)
+        traj = GameTrajectory(
+            n_stack=hparams.model["n_stack"],
+            discount=hparams.reward_discount,
+            gray_scale=False,
+            unroll_steps=hparams.train["unroll_steps"],
+            td_steps=hparams.train["td_steps"],
+            td_lambda=hparams.train["td_lambda"],
+            obs_shape=hparams.state_dim,
+            max_size=hparams.data["trajectory_size"],
+            image_based=agent_type == AgentType.ATARI or agent_type == AgentType.DMC_IMAGE,
+            episodic=False,
+            GAE_max_steps=hparams.model["GAE_max_steps"]
+        )
+        traj.obs_lst = obs_lst
+        traj.reward_lst = reward_lst
+        traj.policy_lst = policy_lst
+        traj.action_lst = action_lst
+        traj.pred_value_lst = pred_value_lst
+        traj.search_value_lst = search_value_lst
+        traj.bootstrapped_value_lst = bootstrapped_value_lst
+        traj_lst.append(traj)
+    return traj_lst
 
 
 class AgentType(IntEnum):
@@ -37,8 +69,15 @@ class AgentType(IntEnum):
     DMC_STATE = 2
 
 
+class DecisionModel(IntEnum):
+    SELF_PLAY = 0
+    REANALYZE = 1
+    LATEST = 2
+    CURRENT = 3
+
+
 class EZAgent(Agent):
-    def __init__(self, hparams, agent_type: AgentType):
+    def __init__(self, hparams, agent_type: AgentType, env_action_space=None):
         super(EZAgent, self).__init__(hparams)
         self.trained_steps = None
         self.eval_counter = None
@@ -54,6 +93,11 @@ class EZAgent(Agent):
         self.scheduler = None
         self.max_steps = None
         self.optimizer = None
+        self.total_train_steps = None
+        self.beta_schedule = None
+        self.self_play_model = None
+        self.reanalyze_model = None
+        self.latest_model = None
         self.pool_size = 1
         self.collector: GameTrajectory | None = None
         self.traj_pool : list | None = None
@@ -87,6 +131,7 @@ class EZAgent(Agent):
             **self.hparams.mcts,
             **self.hparams.model
         )
+        self.env_action_space = env_action_space
 
     def init_model_atari(self):
         if isinstance(self.obs_shape, int):
@@ -390,7 +435,15 @@ class EZAgent(Agent):
             return self.model
         return self.model.__getattr__(model_name)
 
-    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
+        if decision_model == DecisionModel.SELF_PLAY:
+            model = self.self_play_model
+        elif decision_model == DecisionModel.LATEST:
+            model = self.latest_model
+        elif decision_model == DecisionModel.REANALYZE:
+            model = self.reanalyze_model
+        else:
+            model = self.model
         self.stacked_obs.append(obs)
         current_stacked_obs = formalize_obs_lst(
             list(self.stacked_obs),
@@ -399,22 +452,22 @@ class EZAgent(Agent):
 
         with torch.no_grad():
             with autocast():
-                states, values, policies = self.model.initial_inference(current_stacked_obs)
+                states, values, policies = model.initial_inference(current_stacked_obs)
 
         values = values.detach().cpu().numpy().flatten()
 
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
                 r_values, r_policies, best_actions, _ = self.mcts.search(
-                    self.model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0
+                    model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0
                 )
             else:
                 r_values, r_policies, best_actions, _ = self.mcts.search_ori_mcts(
-                    self.model, states.shape[0], states, values, policies, use_noise=False
+                    model, states.shape[0], states, values, policies, use_noise=False
                 )
         else:
             r_values, r_policies, best_actions, _, _, _ = self.mcts.search_continuous(
-                self.model,
+                model,
                 states.shape[0],
                 states,
                 values,
@@ -431,7 +484,7 @@ class EZAgent(Agent):
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         return self.act(obs, task_id, act_type)
 
-    def train(self):
+    def train(self, total_train_steps):
         if self.hparams.optimizer["type"] == 'SGD':
             self.optimizer = optim.SGD(self.model.parameters(),
                                   lr=self.hparams.optimizer["lr"],
@@ -504,6 +557,17 @@ class EZAgent(Agent):
 
         self.prev_traj = None
 
+        self.total_train_steps = total_train_steps
+        self.beta_schedule = LinearSchedule(
+            self.total_train_steps,
+            initial_p=self.hparams.priority["priority_prob_beta"],
+            final_p=1.0
+        )
+
+        self.self_play_model = copy.deepcopy(self.model)
+        self.reanalyze_model = copy.deepcopy(self.model)
+        self.latest_model = copy.deepcopy(self.model)
+
         self.training_mode = True
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
@@ -542,9 +606,6 @@ class EZAgent(Agent):
                 self.collector.save_to_memory()
                 self.put_trajs(self.collector)
 
-
-
-
     def save_previous_trajectory(self, prev_traj, game_traj, padding=True):
         """
         put the previous game trajectory into the pool if the current trajectory is full
@@ -576,7 +637,7 @@ class EZAgent(Agent):
 
             pad_obs_lst = game_traj.obs_lst[beg_index:end_index]
 
-            pad_policy_lst = game_traj.policy_lst[0:self.hparams.trian["unroll_steps"]]
+            pad_policy_lst = game_traj.policy_lst[0:self.hparams.train["unroll_steps"]]
             pad_reward_lst = game_traj.reward_lst[0:gap_step - 1]
             pad_pred_values_lst = game_traj.pred_value_lst[0:gap_step]
             pad_search_values_lst = game_traj.search_value_lst[0:gap_step]
@@ -614,8 +675,262 @@ class EZAgent(Agent):
             self.replay_buffer.save_pools(self.traj_pool, priorities)
             del self.traj_pool[:]
 
+    def make_batch(self):
+        # ==============================================================================================================
+        # Prepare
+        # ==============================================================================================================
+        beta = self.beta_schedule.value(self.trained_steps)
+        batch_size = self.hparams.train["batch_size"]
+        batch_context = self.replay_buffer.prepare_batch_context(
+            batch_size=batch_size,
+            alpha=self.hparams.priority["priority_prob_alpha"],
+            beta=beta,
+            rank=0,
+            cnt=self.trained_steps
+        )
+        batch_context, validation_flag = batch_context
+        (
+            traj_lst,
+            transition_pos_lst,
+            indices_lst,
+            weights_lst,
+            make_time_lst,
+            transition_num,
+            prior_lst
+        ) = batch_context
+
+        traj_lst = concat_trajs(traj_lst, self.hparams, self.agent_type)
+
+        reanalyze_batch_size = int(batch_size * self.hparams.train["reanalyze_ratio"])
+        assert 0 <= reanalyze_batch_size <= batch_size
+
+        # ==============================================================================================================
+        # Make Inputs
+        # ==============================================================================================================
+        collected_transitions = self.replay_buffer.get_transition_num()
+
+        # make observations, actions and masks (if unrolled steps are out of trajectory)
+        obs_lst, action_lst, mask_lst = [], [], []
+        top_new_masks = []
+
+        # prepare the inputs of a batch
+        for i in range(batch_size):
+            traj = traj_lst[i]
+            state_index = transition_pos_lst[i]
+            sample_idx = indices_lst[i]
+
+            if self.agent_type == AgentType.ATARI:
+                top_new_masks.append(int(sample_idx > collected_transitions - self.hparams.train["mixed_value_threshold"]))
+                _actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]].tolist()
+                _mask = [1. for _ in range(len(_actions))]
+                _mask += [0. for _ in range(self.hparams.train["unroll_steps"] - len(_mask))]
+                _actions += [np.random.randint(0, self.env_action_space.n) for _ in range(self.hparams.train["unroll_steps"] - len(_actions))]
+            else:
+                _actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
+                _unroll_actions = traj.action_lst[state_index + 1:state_index + 1 + self.hparams.train["unroll_steps"]]
+                # _unroll_actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
+                _mask = [1. for _ in range(_unroll_actions.shape[0])]
+                _mask += [0. for _ in range(self.hparams.train["unroll_steps"] - len(_mask))]
+                _rand_actions = np.zeros((self.hparams.train["unroll_steps"] - _actions.shape[0], self.control_dim))
+                _actions = np.concatenate((_actions, _rand_actions), axis=0)
+
+            obs_lst.append(traj.get_index_stacked_obs(state_index, padding=True))
+            action_lst.append(_actions)
+            mask_lst.append(_mask)
+
+        obs_lst = prepare_obs_lst(obs_lst, self.agent_type == AgentType.ATARI or self.agent_type == AgentType.DMC_IMAGE)
+        inputs_batch = [obs_lst, action_lst, mask_lst, indices_lst, weights_lst, make_time_lst, prior_lst]
+        inputs_batch = [np.asarray(inputs_batch[i]) for i in range(len(inputs_batch))]
+
+        # ==============================================================================================================
+        # make targets
+        # ==============================================================================================================
+        value_taget = self.hparams.train["value_target"]
+        value_target_type = self.hparams.model["value_target"]
+        
+    def prepare_reward_value_gae(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
+        # value prefix (or reward), value
+        batch_value_prefixes, batch_values = [], []
+        extra = max(
+            0, 
+            min(
+                int(1 / (1 - self.hparams.train["td_lambda"])), self.hparams.model["GAE_max_steps"]
+            ) - self.hparams.train["unroll_steps"] - 1
+        )
+
+        # init
+        value_obs_lst, td_steps_lst, value_mask = [], [], []  # mask: 0 -> out of traj
+        policy_obs_lst, policy_mask = [], []
+        zero_obs = traj_lst[0].get_zero_obs(self.hparams.model["n_stack"], channel_first=False)
+
+        # get obs_{t+k}
+        for traj, state_index, idx in zip(traj_lst, transition_pos_lst, indices_lst):
+            traj_len = len(traj)
+            td_steps = 1
+
+            # prepare the corresponding observations for bootstrapped values o_{t+k}
+            traj_obs = traj.get_index_stacked_obs(state_index + td_steps, extra=extra)
+            game_obs = traj.get_index_stacked_obs(state_index, extra=extra)
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1 + extra):
+                bootstrap_index = current_index + td_steps
+
+                if bootstrap_index <= traj_len:
+                    value_mask.append(1)
+                    beg_index = bootstrap_index - (state_index + td_steps)
+                    end_index = beg_index + self.hparams.model["n_stack"]
+                    obs = traj_obs[beg_index:end_index]
+                else:
+                    value_mask.append(0)
+                    obs = np.asarray(zero_obs)
+
+                value_obs_lst.append(obs)
+                td_steps_lst.append(td_steps)
+
+                if current_index < traj_len:
+                    policy_mask.append(1)
+                    beg_index = current_index - state_index
+                    end_index = beg_index + self.hparams.model["n_stack"]
+                    obs = game_obs[beg_index:end_index]
+                else:
+                    policy_mask.append(0)
+                    obs = np.asarray(zero_obs)
+                policy_obs_lst.append(obs)
+
+        # reanalyze the bootstrapped value v_{t+k}
+        _, value_lst, _ = self.efficient_inference_reanalyze(value_obs_lst, only_value=True)
+        state_lst, ori_cur_value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False)
+        # v_{t+k}
+        batch_size = len(value_lst)
+        value_lst = value_lst.reshape(-1) * (np.array([self.hparams.reward_discount for _ in range(batch_size)]) ** td_steps_lst)
+        value_lst = value_lst * np.array(value_mask)
+        # value_lst = np.zeros_like(value_lst)  # for unit test, remove if training
+        value_lst = value_lst.tolist()
+
+        cur_value_lst = ori_cur_value_lst.reshape(-1) * np.array(policy_mask)
+        # cur_value_lst = np.zeros_like(cur_value_lst)    # for unit test, remove if training
+        cur_value_lst = cur_value_lst.tolist()
+
+        state_lst_cut, ori_cur_value_lst_cut, policy_lst_cut, policy_mask_cut = [], [], [], []
+        for i in range(len(state_lst)):
+            if i % (self.hparams.train["unroll_steps"] + extra + 1) < self.hparams.train["unroll_steps"] + 1:
+                state_lst_cut.append(state_lst[i].unsqueeze(0))
+                ori_cur_value_lst_cut.append(ori_cur_value_lst[i])
+                policy_lst_cut.append(policy_lst[i].unsqueeze(0))
+                policy_mask_cut.append(policy_mask[i])
+        state_lst_cut = torch.cat(state_lst_cut, dim=0)
+        ori_cur_value_lst_cut = np.asarray(ori_cur_value_lst_cut)
+        policy_lst_cut = torch.cat(policy_lst_cut, dim=0)
+
+        # v_{t} = r + ... + gamma ^ k * v_{t+k}
+        value_index = 0
+        td_lambdas = []
+        for traj, state_index, idx in zip(traj_lst, transition_pos_lst, indices_lst):
+            traj_len = len(traj)
+            target_values = []
+            target_value_prefixs = []
+
+            delta_lambda = 0.1 * (collected_transitions - idx) / self.hparams.train["auto_td_steps"]
+            if self.hparams.model["value_target"] in ['mixed', 'max']:
+                delta_lambda = 0.0
+            td_lambda = self.hparams.train["td_lambda"] - delta_lambda
+            td_lambda = np.clip(td_lambda, 0.65, self.hparams.train["td_lambda"])
+            td_lambdas.append(td_lambda)
+
+            delta = np.zeros(self.hparams.train["unroll_steps"] + 1 + extra)
+            advantage = np.zeros(self.hparams.train["unroll_steps"] + 1 + extra + 1)
+            index = self.hparams.train["unroll_steps"] + extra
+            for current_index in reversed(range(state_index, state_index + self.hparams.train["unroll_steps"] + 1 + extra)):
+                bootstrap_index = current_index + td_steps_lst[value_index + index]
+
+                for i, reward in enumerate(traj.reward_lst[current_index:bootstrap_index]):
+                    value_lst[value_index + index] += reward * self.hparams.reward_discount ** i
+
+                delta[index] = value_lst[value_index + index] - cur_value_lst[value_index + index]
+                advantage[index] = delta[index] + self.hparams.reward_discount * td_lambda * advantage[index + 1]
+                index -= 1
+
+            target_values_tmp = advantage[
+                                :self.hparams.train["unroll_steps"] + 1
+                                ] + np.asarray(cur_value_lst)[
+                                    value_index:value_index + self.hparams.train["unroll_steps"] + 1
+                                ]
+
+            horizon_id = 0
+            value_prefix = 0.0
+            for i, current_index in enumerate(range(state_index, state_index + self.hparams.train["unroll_steps"] + 1)):
+                # reset every lstm_horizon_len
+                if horizon_id % self.hparams.model["lstm_horizon_len"] == 0 and self.value_prefix:
+                    value_prefix = 0.0
+                horizon_id += 1
+
+                if current_index < traj_len:
+                    # Since the horizon is small and the discount is close to 1.
+                    # Compute the reward sum to approximate the value prefix for simplification
+                    if self.value_prefix:
+                        value_prefix += traj.reward_lst[current_index]
+                    else:
+                        value_prefix = traj.reward_lst[current_index]
+                    target_value_prefixs.append(value_prefix)
+                else:
+                    target_value_prefixs.append(value_prefix)
+
+                if current_index <= traj_len:
+                    target_values.append(target_values_tmp[i])
+                else:
+                    target_values.append(0)
+
+            value_index += (self.hparams.train["unroll_steps"] + 1 + extra)
+            batch_value_prefixes.append(target_value_prefixs)
+            batch_values.append(target_values)
+
+        value_index = 0
+        value_masks, policy_masks = [], []
+        for i, idx in enumerate(indices_lst):
+            value_masks.append(int(idx > collected_transitions - self.hparams.train["mixed_value_threshold"]))
+            value_index += (self.hparams.train["unroll_steps"] + 1 + extra)
+
+        value_masks = np.asarray(value_masks)
+        return np.asarray(batch_value_prefixes), np.asarray(batch_values), np.asarray(td_steps_lst).flatten(), \
+               (state_lst_cut, ori_cur_value_lst_cut, policy_lst_cut, policy_mask_cut), value_masks
+
+    def efficient_inference_reanalyze(self, obs_lst, only_value=False, value_idx=0):
+        batch_size = len(obs_lst)
+        obs_lst = np.asarray(obs_lst)
+        state_lst, value_lst, policy_lst = [], [], []
+        # split a full batch into slices of mini_infer_size
+        mini_batch = self.hparams.train["mini_batch_size"]
+        slices = np.ceil(batch_size / mini_batch).astype(np.int32)
+        with torch.no_grad():
+            for i in range(slices):
+                beg_index = mini_batch * i
+                end_index = mini_batch * (i + 1)
+                current_obs = obs_lst[beg_index:end_index]
+                current_obs = formalize_obs_lst(
+                    current_obs,
+                    self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
+                )
+                # obtain the statistics at current steps
+                with autocast():
+                    states, values, policies = self.reanalyze_model.initial_inference(current_obs)
+
+                # process outputs
+                values = values.detach().cpu().numpy().flatten()
+                # concat
+                value_lst.append(values)
+                if not only_value:
+                    state_lst.append(states)
+                    policy_lst.append(policies)
+
+        value_lst = np.concatenate(value_lst)
+        if not only_value:
+            state_lst = torch.cat(state_lst)
+            policy_lst = torch.cat(policy_lst)
+        return state_lst, value_lst, policy_lst
+
+
     def learn(self, task_id: int):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
+        # todo: update decision models
 
 
 
