@@ -16,6 +16,31 @@ import numpy as np
 import torch
 
 
+class FIFOQueue:
+    def __init__(self, size=20, threshold=15):
+        self.queue = []
+        self.size = size
+        self.threshold = threshold
+
+    def push(self, item):
+        if len(self.queue) >= self.size:
+            raise OverflowError("Queue is full")
+        self.queue.append(item)
+
+    def pop(self):
+        if not self.queue:
+            raise IndexError("Pop from empty queue")
+        return self.queue.pop(0)
+
+    def get_len(self):
+        return len(self.queue)
+
+    def is_above_threshold(self):
+        if self.threshold is None:
+            return False
+        return len(self.queue) > self.threshold
+
+
 class LinearSchedule(object):
     def __init__(self, schedule_timesteps, final_p, initial_p=1.0):
         """Linear interpolation between initial_p and final_p over

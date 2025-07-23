@@ -26,7 +26,7 @@ from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwo
 from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
 from hypercez.ezv2.mcts.mcts import MCTS
-from hypercez.util.format import DiscreteSupport, formalize_obs_lst, LinearSchedule, prepare_obs_lst
+from hypercez.util.format import DiscreteSupport, formalize_obs_lst, LinearSchedule, prepare_obs_lst, FIFOQueue
 from hypercez.util.replay_buffer import ReplayBuffer
 from hypercez.util.trajectory import GameTrajectory
 
@@ -103,6 +103,7 @@ class EZAgent(Agent):
         self.collector: GameTrajectory | None = None
         self.traj_pool : list | None = None
         self.replay_buffer: ReplayBuffer | None = None
+        self.batch_storage: FIFOQueue | None = None
         self.prev_traj = None
         self.agent_type = agent_type
         self.stacked_obs = deque(maxlen=hparams.model["stacked_obs"])
@@ -568,6 +569,7 @@ class EZAgent(Agent):
         self.self_play_model = copy.deepcopy(self.model)
         self.reanalyze_model = copy.deepcopy(self.model)
         self.latest_model = copy.deepcopy(self.model)
+        self.batch_storage = FIFOQueue()
 
         self.training_mode = True
 
@@ -676,6 +678,19 @@ class EZAgent(Agent):
             self.replay_buffer.save_pools(self.traj_pool, priorities)
             del self.traj_pool[:]
 
+    def get_temperature(self, trained_steps):
+        if self.hparams.train["change_temperature"]:
+            total_steps = self.hparams.train["training_steps"] + self.hparams.train["offline_training_steps"]
+            # if self.config.env.env == 'Atari':
+            if trained_steps < 0.5 * total_steps:   # prev 0.5
+                return 1.0
+            elif trained_steps < 0.75 * total_steps:    # prev 0.75
+                return 0.5
+            else:
+                return 0.25
+        else:
+            return 1.0
+
     def make_batch(self):
         # ==============================================================================================================
         # Prepare
@@ -703,7 +718,7 @@ class EZAgent(Agent):
         traj_lst = concat_trajs(traj_lst, self.hparams, self.agent_type)
 
         reanalyze_batch_size = int(batch_size * self.hparams.train["reanalyze_ratio"])
-        assert 0 <= reanalyze_batch_size <= batch_size
+        assert 0 < reanalyze_batch_size <= batch_size
 
         # ==============================================================================================================
         # Make Inputs
@@ -761,6 +776,63 @@ class EZAgent(Agent):
         else:
             raise NotImplementedError
 
+        batch_value_prefixes, batch_values, td_steps, pre_calc, value_masks = prepare_func(
+            traj_lst,
+            transition_pos_lst,
+            indices_lst,
+            collected_transitions,
+            self.trained_steps
+        )
+
+        (
+            batch_policies_re,
+            sampled_actions,
+            best_actions,
+            reanalyzed_values,
+            pre_lst,
+            policy_masks
+        ) = self.prepare_policy_reanalyze(
+            self.trained_steps,
+            traj_lst[:reanalyze_batch_size],
+            transition_pos_lst[:reanalyze_batch_size],
+            indices_lst[:reanalyze_batch_size],
+            state_lst=pre_calc[0],
+            value_lst=pre_calc[1],
+            policy_lst=pre_calc[2],
+            policy_mask=pre_calc[3]
+        )
+
+        batch_policies = batch_policies_re
+
+        if self.agent_type == AgentType.ATARI:
+            batch_best_actions = np.asarray(best_actions).reshape(batch_size, self.hparams.train["unroll_steps"] + 1)
+            batch_actions = sampled_actions.reshape(
+                batch_size, self.hparams.train["unroll_steps"] + 1, -1, self.env_action_space.n
+            )
+        else:
+            batch_best_actions = best_actions.reshape(
+                batch_size,
+                self.hparams.train["unroll_steps"] + 1,
+                self.control_dim
+            )
+            batch_actions = np.ones_like(batch_policies)
+
+        targets_batch = [batch_value_prefixes,
+                         batch_values,
+                         batch_actions,
+                         batch_policies,
+                         batch_best_actions,
+                         top_new_masks,
+                         policy_masks,
+                         reanalyzed_values]
+        targets_batch = [np.asarray(targets_batch[i]) for i in range(len(targets_batch))]
+
+        # ==============================================================================================================
+        # push batch into batch queue
+        # ==============================================================================================================
+        batch = [inputs_batch, targets_batch]
+        self.batch_storage.push(batch)
+        return batch
         
     def prepare_reward_value_gae(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
         # value prefix (or reward), value
@@ -1082,10 +1154,145 @@ class EZAgent(Agent):
             policy_lst = torch.cat(policy_lst)
         return state_lst, value_lst, policy_lst
 
+    def prepare_policy_reanalyze(self,
+                                 trained_steps,
+                                 traj_lst,
+                                 transition_pos_lst,
+                                 indices_lst,
+                                 state_lst=None,
+                                 value_lst=None,
+                                 policy_lst=None,
+                                 policy_mask=None):
+        # policy
+        reanalyzed_values = []
+        batch_policies = []
+
+        # init
+        if value_lst is None:
+            policy_obs_lst, policy_mask = [], []   # mask: 0 -> out of traj
+            zero_obs = traj_lst[0].get_zero_obs(self.hparams.model["n_stack"], channel_first=False)
+
+            # get obs_{t} instead of obs_{t+k}
+            for traj, state_index in zip(traj_lst, transition_pos_lst):
+                traj_len = len(traj)
+
+                game_obs = traj.get_index_stacked_obs(state_index)
+                for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+
+                    if current_index < traj_len:
+                        policy_mask.append(1)
+                        beg_index = current_index - state_index
+                        end_index = beg_index + self.hparams.model["n_stack"]
+                        obs = game_obs[beg_index:end_index]
+                    else:
+                        policy_mask.append(0)
+                        obs = np.asarray(zero_obs)
+                    policy_obs_lst.append(obs)
+
+            # reanalyze the search policy pi_{t}
+            state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False)
+
+        # tree search for policies
+        batch_size = len(state_lst)
+
+        # temperature
+        temperature = self.get_temperature(trained_steps=trained_steps) #* np.ones((batch_size, 1))
+
+        if self.agent_type == AgentType.ATARI:
+            if self.hparams.mcts["use_gumbel"]:
+                r_values, r_policies, best_actions, _ = self.mcts.search(
+                    self.reanalyze_model,
+                    batch_size,
+                    state_lst,
+                    value_lst,
+                    policy_lst,
+                    use_gumble_noise=True,
+                    temperature=temperature
+                )
+            else:
+                r_values, r_policies, best_actions, _ = self.mcts.search_ori_mcts(
+                    self.reanalyze_model,
+                    batch_size,
+                    state_lst,
+                    value_lst,
+                    policy_lst,
+                    use_noise=True,
+                    temperature=temperature,
+                    is_reanalyze=True
+                )
+            sampled_actions = best_actions
+            search_best_indexes = best_actions
+        else:
+
+            r_values, r_policies, best_actions, sampled_actions, search_best_indexes, _ = self.mcts.search_continuous(
+                self.reanalyze_model,
+                batch_size,
+                state_lst,
+                value_lst,
+                policy_lst,
+                temperature=temperature
+            )
+
+        # concat policy
+        policy_index = 0
+        policy_masks = []
+        mismatch_index = []
+        for traj, state_index, ind in zip(traj_lst, transition_pos_lst, indices_lst):
+            target_policies = []
+            search_values = []
+            policy_masks.append([])
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+                traj_len = len(traj)
+
+                assert (current_index < traj_len) == (policy_mask[policy_index])
+                if policy_mask[policy_index]:
+                    target_policies.append(r_policies[policy_index])
+                    search_values.append(r_values[policy_index])
+                    # mask best-action & pi_prime mismatches
+                    if r_policies[policy_index].argmax() != search_best_indexes[policy_index]:
+                        policy_mask[policy_index] = 0
+                        mismatch_index.append(ind + current_index - state_index)
+                else:
+                    search_values.append(0.0)
+                    if self.agent_type != AgentType.ATARI:
+                        target_policies.append([0 for _ in range(sampled_actions.shape[1])])
+                    else:
+                        target_policies.append([0 for _ in range(self.env_action_space.n)])
+                policy_masks[-1].append(policy_mask[policy_index])
+                policy_index += 1
+            batch_policies.append(target_policies)
+            reanalyzed_values.append(search_values)
+
+        policy_masks = np.asarray(policy_masks)
+        return (batch_policies,
+                sampled_actions,
+                best_actions,
+                reanalyzed_values,
+                (state_lst, value_lst, policy_lst, policy_mask),
+                policy_masks)
+
+    def prepare_policy_non_reanalyze(self, traj_lst, transition_pos_lst):
+        # policy
+        batch_policies = []
+
+        # load searched policy in self-play
+        for traj, state_index in zip(traj_lst, transition_pos_lst):
+            traj_len = len(traj)
+            target_policies = []
+
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+                if current_index < traj_len:
+                    target_policies.append(traj.policy_lst[current_index])
+                else:
+                    target_policies.append([0 for _ in range(self.control_dim)])
+
+            batch_policies.append(target_policies)
+        return batch_policies
 
     def learn(self, task_id: int):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
         # todo: update decision models
+        batch = self.make_batch()
 
 
 
