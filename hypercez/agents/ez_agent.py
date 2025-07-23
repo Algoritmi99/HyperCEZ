@@ -75,6 +75,7 @@ class DecisionModel(IntEnum):
     LATEST = 2
     CURRENT = 3
 
+# todo: update code to read n_stack from config everywhere
 
 class EZAgent(Agent):
     def __init__(self, hparams, agent_type: AgentType, env_action_space=None):
@@ -745,8 +746,21 @@ class EZAgent(Agent):
         # ==============================================================================================================
         # make targets
         # ==============================================================================================================
-        value_taget = self.hparams.train["value_target"]
+        value_target = self.hparams.train["value_target"]
         value_target_type = self.hparams.model["value_target"]
+
+        if value_target in ['sarsa', 'mixed', 'max']:
+            if value_target_type == 'GAE':
+                prepare_func = self.prepare_reward_value_gae
+            elif value_target_type == 'bootstrapped':
+                prepare_func = self.prepare_reward_value
+            else:
+                raise NotImplementedError
+        elif value_target == 'search':
+            prepare_func = self.prepare_reward
+        else:
+            raise NotImplementedError
+
         
     def prepare_reward_value_gae(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
         # value prefix (or reward), value
@@ -892,6 +906,104 @@ class EZAgent(Agent):
         value_masks = np.asarray(value_masks)
         return np.asarray(batch_value_prefixes), np.asarray(batch_values), np.asarray(td_steps_lst).flatten(), \
                (state_lst_cut, ori_cur_value_lst_cut, policy_lst_cut, policy_mask_cut), value_masks
+
+    def prepare_reward_value(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
+        # value prefix (or reward), value
+        batch_value_prefixes, batch_values = [], []
+        # search_values = []
+
+        # init
+        value_obs_lst, td_steps_lst, value_mask = [], [], []    # mask: 0 -> out of traj
+        zero_obs = traj_lst[0].get_zero_obs(self.hparams.model["n_stack"], channel_first=False)
+
+        # get obs_{t+k}
+        for traj, state_index, idx in zip(traj_lst, transition_pos_lst, indices_lst):
+            traj_len = len(traj)
+
+            # off-policy correction: shorter horizon of td steps
+            delta_td = (collected_transitions - idx) // self.hparams.train["auto_td_steps"]
+            if self.hparams.train["value_target"] in ['mixed', 'max']:
+                delta_td = 0
+            td_steps = self.hparams.train["td_steps"] - delta_td
+            # td_steps = self.td_steps  # for test off-policy issue
+
+            td_steps = min(traj_len - state_index, td_steps)
+            td_steps = np.clip(td_steps, 1, self.hparams.train["td_steps"]).astype(np.int32)
+
+            obs_idx = state_index + td_steps
+
+            # prepare the corresponding observations for bootstrapped values o_{t+k}
+            traj_obs = traj.get_index_stacked_obs(state_index + td_steps)
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+                td_steps = min(traj_len - current_index, td_steps)
+                td_steps = max(td_steps, 1)
+                bootstrap_index = current_index + td_steps
+
+                if bootstrap_index <= traj_len:
+                    value_mask.append(1)
+                    beg_index = bootstrap_index - obs_idx
+                    end_index = beg_index + self.hparams.model["n_stack"]
+                    obs = traj_obs[beg_index:end_index]
+                else:
+                    value_mask.append(0)
+                    obs = zero_obs
+
+                value_obs_lst.append(obs)
+                td_steps_lst.append(td_steps)
+
+        # reanalyze the bootstrapped value v_{t+k}
+        state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(value_obs_lst, only_value=True)
+        batch_size = len(value_lst)
+        value_lst = value_lst.reshape(-1) * (np.array([self.hparams.reward_discount for _ in range(batch_size)]) ** td_steps_lst)
+        value_lst = value_lst * np.array(value_mask)
+        # value_lst = np.zeros_like(value_lst)    # for unit test, remove if training
+        value_lst = value_lst.tolist()
+
+        # v_{t} = r + ... + gamma ^ k * v_{t+k}
+        value_index = 0
+        top_value_masks = []
+        for traj, state_index, idx in zip(traj_lst, transition_pos_lst, indices_lst):
+            traj_len = len(traj)
+            target_values = []
+            target_value_prefixs = []
+
+            horizon_id = 0
+            value_prefix = 0.0
+            top_value_masks.append(int(idx > collected_transitions - self.hparams.train["mixed_value_threshold"]))
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+                bootstrap_index = current_index + td_steps_lst[value_index]
+
+                for i, reward in enumerate(traj.reward_lst[current_index:bootstrap_index]):
+                    value_lst[value_index] += reward * self.hparams.reward_discount ** i
+
+                # reset every lstm_horizon_len
+                if horizon_id % self.hparams.model["lstm_horizon_len"] == 0 and self.value_prefix:
+                    value_prefix = 0.0
+                horizon_id += 1
+
+                if current_index < traj_len:
+                    # Since the horizon is small and the discount is close to 1.
+                    # Compute the reward sum to approximate the value prefix for simplification
+                    if self.value_prefix:
+                        value_prefix += traj.reward_lst[current_index]
+                    else:
+                        value_prefix = traj.reward_lst[current_index]
+                    target_value_prefixs.append(value_prefix)
+                else:
+                    target_value_prefixs.append(value_prefix)
+
+                if current_index <= traj_len:
+                    target_values.append(value_lst[value_index])
+                else:
+                    target_values.append(0)
+                value_index += 1
+
+            batch_value_prefixes.append(target_value_prefixs)
+            batch_values.append(target_values)
+
+        value_masks = np.asarray(top_value_masks)
+        return np.asarray(batch_value_prefixes), np.asarray(batch_values), np.asarray(td_steps_lst).flatten(), \
+               (None, None, None, None), value_masks
 
     def efficient_inference_reanalyze(self, obs_lst, only_value=False, value_idx=0):
         batch_size = len(obs_lst)
