@@ -1005,6 +1005,49 @@ class EZAgent(Agent):
         return np.asarray(batch_value_prefixes), np.asarray(batch_values), np.asarray(td_steps_lst).flatten(), \
                (None, None, None, None), value_masks
 
+    def prepare_reward(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
+        # value prefix (or reward), value
+        batch_value_prefixes = []
+
+        # v_{t} = r + ... + gamma ^ k * v_{t+k}
+        value_index = 0
+        top_value_masks = []
+        for traj, state_index, idx in zip(traj_lst, transition_pos_lst, indices_lst):
+            traj_len = len(traj)
+            target_value_prefixs = []
+
+            horizon_id = 0
+            value_prefix = 0.0
+            top_value_masks.append(int(idx > collected_transitions - self.hparams.train["start_use_mix_training_steps"]))
+            for current_index in range(state_index, state_index + self.hparams.train["unroll_steps"] + 1):
+
+                # reset every lstm_horizon_len
+                if horizon_id % self.hparams.model["lstm_horizon_len"] == 0 and self.value_prefix:
+                    value_prefix = 0.0
+                horizon_id += 1
+
+                if current_index < traj_len:
+                    # Since the horizon is small and the discount is close to 1.
+                    # Compute the reward sum to approximate the value prefix for simplification
+                    if self.value_prefix:
+                        value_prefix += traj.reward_lst[current_index]
+                    else:
+                        value_prefix = traj.reward_lst[current_index]
+                    target_value_prefixs.append(value_prefix)
+                else:
+                    target_value_prefixs.append(value_prefix)
+
+                value_index += 1
+
+            batch_value_prefixes.append(target_value_prefixs)
+
+        value_masks = np.asarray(top_value_masks)
+        batch_value_prefixes = np.asarray(batch_value_prefixes)
+        batch_values = np.zeros_like(batch_value_prefixes)
+        td_steps_lst = np.ones_like(batch_value_prefixes)
+        return batch_value_prefixes, np.asarray(batch_values), td_steps_lst.flatten(), \
+               (None, None, None, None), value_masks
+
     def efficient_inference_reanalyze(self, obs_lst, only_value=False, value_idx=0):
         batch_size = len(obs_lst)
         obs_lst = np.asarray(obs_lst)
