@@ -1409,7 +1409,6 @@ class EZAgent(Agent):
         target_policies = torch.from_numpy(target_policies).cuda().float()
         target_best_actions = torch.from_numpy(target_best_actions).cuda().float()
         top_value_masks = torch.from_numpy(top_value_masks).cuda().float()
-        mismatch_masks = torch.from_numpy(mismatch_masks).cuda().float()
         search_values = torch.from_numpy(search_values).cuda().float()
         max_value_target = torch.from_numpy(max_value_target).cuda().float()
 
@@ -1452,7 +1451,6 @@ class EZAgent(Agent):
 
         value_loss = torch.zeros(batch_size).cuda()
         value_loss += Value_loss(values, this_target_values[:, 0], self.hparams)
-        prev_values = values.clone()
 
         if is_continuous:
             policy_loss, entropy_loss = continuous_loss(
@@ -1476,7 +1474,6 @@ class EZAgent(Agent):
         policy_entropy_loss = torch.zeros(batch_size).cuda()
         policy_entropy_loss -= entropy_loss
 
-        prev_value_prefixes = torch.zeros_like(policy_loss)
         # unroll k steps recurrently
         with autocast():
             for step_i in range(unroll_steps):
