@@ -1534,11 +1534,6 @@ class EZAgent(Agent):
 
         weighted_loss = (weights * loss).mean()
 
-        if weighted_loss.isnan():
-            import ipdb
-            ipdb.set_trace()
-            print('loss nan')
-
         # backward
         parameters = model.parameters()
         with autocast():
