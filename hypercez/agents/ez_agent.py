@@ -1511,7 +1511,7 @@ class EZAgent(Agent):
                         policies, target_actions[:, step_i + 1], target_policies[:, step_i + 1],
                         target_best_actions[:, step_i + 1],
                         mask=mask,
-                        distribution_type=self.config.model.policy_distribution
+                        distribution_type=self.hparams.model["policy_distribution"]
                     )
                     policy_loss += policy_loss_i
                     policy_entropy_loss -= entropy_loss_i
@@ -1523,17 +1523,17 @@ class EZAgent(Agent):
                 states.register_hook(lambda grad: grad * 0.5)
 
                 # reset reward hidden
-                if self.config.model.value_prefix and (step_i + 1) % self.config.model.lstm_horizon_len == 0:
+                if self.hparams.model["value_prefix"] and (step_i + 1) % self.hparams.model["lstm_horizon_len"] == 0:
                     reward_hidden = self.init_reward_hidden(batch_size)
 
         # total loss
-        loss = (value_prefix_loss * self.config.train.reward_loss_coeff
-                + value_loss * self.config.train.value_loss_coeff
-                + policy_loss * self.config.train.policy_loss_coeff
-                + consistency_loss * self.config.train.consistency_coeff)
+        loss = (value_prefix_loss * self.hparams.train["reward_loss_coeff"]
+                + value_loss * self.hparams.train["value_loss_coeff"]
+                + policy_loss * self.hparams.train["policy_loss_coeff"]
+                + consistency_loss * self.hparams.train["consistency_coeff"])
 
         if is_continuous:
-            loss += policy_entropy_loss * self.config.train.entropy_coeff
+            loss += policy_entropy_loss * self.hparams.train["entropy_coeff"]
 
         weighted_loss = (weights * loss).mean()
 
@@ -1549,11 +1549,11 @@ class EZAgent(Agent):
         optimizer.zero_grad()
         scaler.scale(weighted_loss).backward()
         scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(parameters, self.config.train.max_grad_norm)
+        torch.nn.utils.clip_grad_norm_(parameters, self.hparams.train["max_grad_norm"])
         scaler.step(optimizer)
         scaler.update()
 
-        if self.config.model.noisy_net:
+        if self.hparams.model["noisy_net"]:
             model.value_policy_model.reset_noise()
             target_model.value_policy_model.reset_noise()
 
