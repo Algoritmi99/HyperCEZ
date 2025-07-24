@@ -122,7 +122,8 @@
       "priority_prob_alpha": 1.0,
       "priority_prob_beta": 1.0,
       "min_prior": 0.000001
-    }
+    },
+    "augmentation": ["shift", "intensity"]
   },
   "alt1": {
     "model": {
@@ -256,7 +257,8 @@
       "priority_prob_alpha": 1.0,
       "priority_prob_beta": 1.0,
       "min_prior": 0.000001
-    }
+    },
+    "augmentation": ["shift", "intensity"]
   },
   "alt2": {
     "model": {
@@ -401,6 +403,7 @@
       "priority_prob_alpha": 1.0,
       "priority_prob_beta": 1.0,
       "min_prior": 0.000001
-    }
+    },
+    "augmentation": ["shift", "intensity"]
   }
 }

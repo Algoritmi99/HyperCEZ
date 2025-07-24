@@ -26,9 +26,11 @@ from hypercez.agents.models.base_model import SupportNetwork as BaseSupportNetwo
 from hypercez.agents.models.base_model import ValuePolicyNetwork as BaseValuePolicyNetwork
 from hypercez.ezv2.ez_model import EfficientZero
 from hypercez.ezv2.mcts.mcts import MCTS
-from hypercez.util.format import DiscreteSupport, formalize_obs_lst, LinearSchedule, prepare_obs_lst, FIFOQueue
+from hypercez.util.format import DiscreteSupport, formalize_obs_lst, LinearSchedule, prepare_obs_lst, FIFOQueue, symexp
 from hypercez.util.replay_buffer import ReplayBuffer
 from hypercez.util.trajectory import GameTrajectory
+from hypercez.util.augmentation import Transforms
+from hypercez.ezv2.loss import kl_loss, cosine_similarity_loss, continuous_loss, symlog_loss, Value_loss
 
 
 def concat_trajs(items, hparams, agent_type):
@@ -105,6 +107,7 @@ class EZAgent(Agent):
         self.replay_buffer: ReplayBuffer | None = None
         self.batch_storage: FIFOQueue | None = None
         self.prev_traj = None
+        self.transforms = None
         self.agent_type = agent_type
         self.stacked_obs = deque(maxlen=hparams.model["stacked_obs"])
         hparams.add_ez_hparams(agent_type.value)
@@ -570,6 +573,9 @@ class EZAgent(Agent):
         self.reanalyze_model = copy.deepcopy(self.model)
         self.latest_model = copy.deepcopy(self.model)
         self.batch_storage = FIFOQueue()
+
+        if self.hparams.augmentation and self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI:
+            self.transforms = Transforms(self.hparams.augmentation, image_shape=(self.obs_shape[1], self.obs_shape[2]))
 
         self.training_mode = True
 
@@ -1337,5 +1343,233 @@ class EZAgent(Agent):
             target_model=copy.deepcopy(self.reanalyze_model),
         )
 
+        self.scaler = scalers[0]
         self.trained_steps += 1
 
+    def update_weights(self, model, batch, optimizer, replay_buffer, scaler, step_count, target_model=None):
+        target_model.eval()
+        # init
+        batch_size = self.hparams.train["batch_size"]
+        image_channel = self.obs_shape[0] if (
+                self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
+        ) else self.obs_shape
+        unroll_steps = self.hparams.rl["unroll_steps"]
+        n_stack = self.hparams.model["n_stack"]
+        gradient_scale = 1. / unroll_steps
+        reward_hidden = self.init_reward_hidden(batch_size)
+        loss_data = {}
+        other_scalar = {}
+        other_distribution = {}
+        is_continuous = self.agent_type != AgentType.ATARI
+
+        # obtain the batch data
+        inputs_batch, targets_batch = batch
+        (obs_batch_ori,
+         action_batch,
+         mask_batch,
+         indices,
+         weights_lst,
+         make_time,
+         prior_lst) = inputs_batch
+        (target_value_prefixes,
+         target_values,
+         target_actions,
+         target_policies,
+         target_best_actions,
+         top_value_masks,
+         mismatch_masks,
+         search_values) = targets_batch
+        target_value_prefixes = target_value_prefixes[:, :unroll_steps]
+
+        if self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI:
+            obs_batch_raw = torch.from_numpy(obs_batch_ori).cuda().float() / 255.
+        else:
+            obs_batch_raw = torch.from_numpy(obs_batch_ori).cuda().float()
+
+        obs_batch = obs_batch_raw[:, 0: n_stack * image_channel]  # obs_batch: current observation
+        obs_target_batch = obs_batch_raw[:, image_channel:]  # obs_target_batch: observation of next steps
+
+        # augmentation
+        obs_batch = self.transform(obs_batch)
+        obs_target_batch = self.transform(obs_target_batch)
+
+        # others to gpu
+        if is_continuous:
+            action_batch = torch.from_numpy(action_batch).float().cuda()
+        else:
+            action_batch = torch.from_numpy(action_batch).cuda().unsqueeze(-1).long()
+        mask_batch = torch.from_numpy(mask_batch).cuda().float()
+        weights = torch.from_numpy(weights_lst).cuda().float()
+
+        max_value_target = np.array([target_values, search_values]).max(0)
+
+        target_value_prefixes = torch.from_numpy(target_value_prefixes).cuda().float()
+        target_values = torch.from_numpy(target_values).cuda().float()
+        target_actions = torch.from_numpy(target_actions).cuda().float()
+        target_policies = torch.from_numpy(target_policies).cuda().float()
+        target_best_actions = torch.from_numpy(target_best_actions).cuda().float()
+        top_value_masks = torch.from_numpy(top_value_masks).cuda().float()
+        mismatch_masks = torch.from_numpy(mismatch_masks).cuda().float()
+        search_values = torch.from_numpy(search_values).cuda().float()
+        max_value_target = torch.from_numpy(max_value_target).cuda().float()
+
+        # transform value and reward to support
+        target_value_prefixes_support = DiscreteSupport.scalar_to_vector(target_value_prefixes,
+                                                                         **self.hparams.model["reward_support"])
+
+        with autocast():
+            states, values, policies = model.initial_inference(obs_batch, training=True)
+
+        if self.hparams.model["value_support"]["type"] == 'symlog':
+            scaled_value = symexp(values).min(0)[0]
+        else:
+            scaled_value = DiscreteSupport.vector_to_scalar(values, **self.hparams.model["value_support"]).min(0)[0]
+        if is_continuous:
+            scaled_value = scaled_value.clip(0, 1e5)
+
+        # loss of first step
+        # multi options (Value Loss)
+        if self.hparams.train["value_target"] == 'sarsa':
+            this_target_values = target_values
+        elif self.hparams.train["value_target"] == 'search':
+            this_target_values = search_values
+        elif self.hparams.train["value_target"] == 'mixed':
+            if step_count < self.hparams.train["start_use_mix_training_steps"]:
+                this_target_values = target_values
+            else:
+                this_target_values = target_values * top_value_masks.unsqueeze(1).repeat(1, unroll_steps + 1) \
+                                     + search_values * (1 - top_value_masks).unsqueeze(1).repeat(1, unroll_steps + 1)
+        elif self.hparams.train["value_target"] == 'max':
+            this_target_values = max_value_target
+        else:
+            raise NotImplementedError
+
+        # update priority
+        fresh_priority = L1Loss(reduction='none')(scaled_value.squeeze(-1),
+                                                  this_target_values[:, 0]).detach().cpu().numpy()
+        fresh_priority += self.hparams.priority["min_prior"]
+        replay_buffer.update_priorities.remote(indices, fresh_priority, make_time)
+
+        value_loss = torch.zeros(batch_size).cuda()
+        value_loss += Value_loss(values, this_target_values[:, 0], self.hparams)
+        prev_values = values.clone()
+
+        if is_continuous:
+            policy_loss, entropy_loss = continuous_loss(
+                policies, target_actions[:, 0], target_policies[:, 0],
+                target_best_actions[:, 0],
+                distribution_type=self.hparams.model["policy_distribution"]
+            )
+            mu = policies[:, :policies.shape[-1] // 2].detach().cpu().numpy().flatten()
+            sigma = policies[:, policies.shape[-1] // 2:].detach().cpu().numpy().flatten()
+            other_distribution.update({
+                'dist/policy_mu': mu,
+                'dist/policy_sigma': sigma,
+            })
+
+        else:
+            policy_loss = kl_loss(policies, target_policies[:, 0])
+            entropy_loss = torch.zeros(batch_size).cuda()
+
+        value_prefix_loss = torch.zeros(batch_size).cuda()
+        consistency_loss = torch.zeros(batch_size).cuda()
+        policy_entropy_loss = torch.zeros(batch_size).cuda()
+        policy_entropy_loss -= entropy_loss
+
+        prev_value_prefixes = torch.zeros_like(policy_loss)
+        # unroll k steps recurrently
+        with autocast():
+            for step_i in range(unroll_steps):
+                mask = mask_batch[:, step_i]
+                states, value_prefixes, values, policies, reward_hidden = model.recurrent_inference(states,
+                                                                                                    action_batch[:,
+                                                                                                    step_i],
+                                                                                                    reward_hidden,
+                                                                                                    training=True)
+
+                beg_index = image_channel * step_i
+                end_index = image_channel * (step_i + n_stack)
+
+                # consistency loss
+                gt_next_states = model.do_representation(obs_target_batch[:, beg_index:end_index])
+
+                # projection for consistency
+                dynamic_states_proj = model.do_projection(states, with_grad=True)
+                gt_states_proj = model.do_projection(gt_next_states, with_grad=False)
+                consistency_loss += cosine_similarity_loss(dynamic_states_proj, gt_states_proj) * mask
+
+                # reward, value, policy loss
+                if self.hparams.model["reward_support"]["type"] == 'symlog':
+                    value_prefix_loss += symlog_loss(value_prefixes, target_value_prefixes[:, step_i]) * mask
+                else:
+                    value_prefix_loss += kl_loss(value_prefixes, target_value_prefixes_support[:, step_i]) * mask
+
+                value_loss += Value_loss(values, this_target_values[:, step_i + 1], self.hparams) * mask
+
+                if is_continuous:
+                    policy_loss_i, entropy_loss_i = continuous_loss(
+                        policies, target_actions[:, step_i + 1], target_policies[:, step_i + 1],
+                        target_best_actions[:, step_i + 1],
+                        mask=mask,
+                        distribution_type=self.config.model.policy_distribution
+                    )
+                    policy_loss += policy_loss_i
+                    policy_entropy_loss -= entropy_loss_i
+                else:
+                    policy_loss_i = kl_loss(policies, target_policies[:, step_i + 1]) * mask
+                    policy_loss += policy_loss_i
+
+                # set half gradient due to two branches of states
+                states.register_hook(lambda grad: grad * 0.5)
+
+                # reset reward hidden
+                if self.config.model.value_prefix and (step_i + 1) % self.config.model.lstm_horizon_len == 0:
+                    reward_hidden = self.init_reward_hidden(batch_size)
+
+        # total loss
+        loss = (value_prefix_loss * self.config.train.reward_loss_coeff
+                + value_loss * self.config.train.value_loss_coeff
+                + policy_loss * self.config.train.policy_loss_coeff
+                + consistency_loss * self.config.train.consistency_coeff)
+
+        if is_continuous:
+            loss += policy_entropy_loss * self.config.train.entropy_coeff
+
+        weighted_loss = (weights * loss).mean()
+
+        if weighted_loss.isnan():
+            import ipdb
+            ipdb.set_trace()
+            print('loss nan')
+
+        # backward
+        parameters = model.parameters()
+        with autocast():
+            weighted_loss.register_hook(lambda grad: grad * gradient_scale)
+        optimizer.zero_grad()
+        scaler.scale(weighted_loss).backward()
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(parameters, self.config.train.max_grad_norm)
+        scaler.step(optimizer)
+        scaler.update()
+
+        if self.config.model.noisy_net:
+            model.value_policy_model.reset_noise()
+            target_model.value_policy_model.reset_noise()
+
+        scalers = [scaler]
+        return scalers, (loss_data, other_scalar, other_distribution)
+
+    def init_reward_hidden(self, batch_size):
+        if self.hparams.model["value_prefix"]:
+            reward_hidden = (torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).cuda(),
+                             torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).cuda())
+        else:
+            reward_hidden = None
+        return reward_hidden
+
+    def transform(self, observation):
+        if self.transforms is not None:
+            return self.transforms(observation)
+        else:
+            return observation
