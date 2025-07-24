@@ -1289,10 +1289,53 @@ class EZAgent(Agent):
             batch_policies.append(target_policies)
         return batch_policies
 
+    def adjust_lr(self, optimizer, step_count, scheduler):
+        lr_warm_step = int(self.hparams.train["training_steps"] * self.hparams.optimizer["lr_warm_up"])
+        optimize_config = self.hparams.optimizer
+
+        # adjust learning rate, step lr every lr_decay_steps
+        if step_count < lr_warm_step:
+            lr = optimize_config["lr"] * step_count / lr_warm_step
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+        else:
+            if self.hparams.optimizer["lr_decay_type"] == 'cosine':
+                if scheduler is not None:
+                    scheduler.step()
+                lr = scheduler.get_last_lr()[0] # return a list
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+            else:
+                lr = optimize_config["lr"] * optimize_config["lr_decay_rate"] ** (
+                            (step_count - lr_warm_step) // optimize_config["lr_decay_steps"])
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+
+        return lr
+
     def learn(self, task_id: int):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
-        # todo: update decision models
         batch = self.make_batch()
+        lr = self.adjust_lr(self.optimizer, self.trained_steps, self.scheduler)
 
+        if self.trained_steps % 30 == 0:
+            self.latest_model = copy.deepcopy(self.model)
 
+        if self.trained_steps % self.hparams.train["self_play_update_interval"] == 0:
+            self.self_play_model = copy.deepcopy(self.model)
+
+        if self.trained_steps % self.hparams.train["reanalyze_update_interval"] == 0:
+            self.reanalyze_model = copy.deepcopy(self.model)
+
+        scalers, log_data = self.update_weights(
+            self.model,
+            batch,
+            self.optimizer,
+            self.replay_buffer,
+            self.scaler,
+            self.trained_steps,
+            target_model=copy.deepcopy(self.reanalyze_model),
+        )
+
+        self.trained_steps += 1
 
