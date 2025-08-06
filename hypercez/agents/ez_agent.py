@@ -109,7 +109,7 @@ class EZAgent(Agent):
         self.prev_traj = None
         self.transforms = None
         self.agent_type = agent_type
-        self.stacked_obs = deque(maxlen=hparams.model["stacked_obs"])
+        self.stacked_obs = deque(maxlen=hparams.model["n_stack"])
         hparams.add_ez_hparams(agent_type.value)
         self.num_blocks = hparams.model["num_blocks"]
         self.num_channels = hparams.model[
@@ -416,7 +416,7 @@ class EZAgent(Agent):
 
     def reset(self, obs):
         self.stacked_obs = deque(
-            [obs for _ in range(self.hparams.model["n_stacked"])], maxlen=self.hparams.model["n_stacked"]
+            [obs for _ in range(self.hparams.model["n_stack"])], maxlen=self.hparams.model["n_stack"]
         )
         self.prev_traj = None
         self.collector = GameTrajectory(
@@ -440,7 +440,7 @@ class EZAgent(Agent):
             return self.model
         return self.model.__getattr__(model_name)
 
-    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
+    def act(self, obs, task_id=None, act_type: ActType = ActType.TRAIN, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
         if decision_model == DecisionModel.SELF_PLAY:
             model = self.self_play_model
         elif decision_model == DecisionModel.LATEST:
@@ -449,11 +449,18 @@ class EZAgent(Agent):
             model = self.reanalyze_model
         else:
             model = self.model
+
+        if act_type == ActType.TRAIN:
+            model.train()
+        else:
+            model.eval()
+
         self.stacked_obs.append(obs)
+
         current_stacked_obs = formalize_obs_lst(
             list(self.stacked_obs),
             image_based=self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
-        )
+        ).to(torch.device("cpu"))
 
         with torch.no_grad():
             with autocast():
@@ -471,6 +478,9 @@ class EZAgent(Agent):
                     model, states.shape[0], states, values, policies, use_noise=False
                 )
         else:
+            # print(policies.shape)
+            # print(values.shape)
+            # print(states.shape)
             r_values, r_policies, best_actions, _, _, _ = self.mcts.search_continuous(
                 model,
                 states.shape[0],

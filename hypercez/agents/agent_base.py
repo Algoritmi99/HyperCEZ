@@ -4,7 +4,7 @@ from enum import IntEnum
 
 class ActType(IntEnum):
     INITIAL = 0
-    RECURRENT = 1
+    TRAIN = 1
 
 
 class Agent:

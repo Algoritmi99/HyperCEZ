@@ -17,7 +17,7 @@ class Trainer:
         for task_id in range(self.hparams.num_tasks):
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
-            x_t = env.reset()
+            x_t, _ = env.reset()
             self.agent.reset(x_t)
             for it in range(self.hparams.init_rand_steps):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
