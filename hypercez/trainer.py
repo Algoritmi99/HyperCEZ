@@ -42,7 +42,6 @@ class Trainer:
 
                 # exploration
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL).detach().cpu().numpy()
-
                 x_tt, reward, terminated, truncated, info = env.step(u_t.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u_t, reward, x_tt, task_id)
                 x_t = x_tt
