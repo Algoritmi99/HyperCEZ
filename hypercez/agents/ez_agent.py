@@ -128,14 +128,6 @@ class EZAgent(Agent):
         self.value_policy_detach = hparams.model[
             "value_policy_detach"] if not agent_type == AgentType.DMC_STATE else None
         self.v_num = hparams.train["v_num"]
-        # self.mcts = MCTS(
-        #     num_actions=self.control_dim if self.agent_type == AgentType.ATARI
-        #         else self.hparams.mcts["num_sampled_actions"],
-        #     discount=self.reward_discount,
-        #     env=self.hparams.env,
-        #     **self.hparams.mcts,
-        #     **self.hparams.model
-        # )
         self.env_action_space = env_action_space
 
     def init_model_atari(self):

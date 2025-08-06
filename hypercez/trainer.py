@@ -1,7 +1,7 @@
 from tqdm import tqdm
 
 from hypercez import Hparams
-from hypercez.agents.agent_base import Agent
+from hypercez.agents.agent_base import Agent, ActType
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.util.datautil import DataCollector
 
@@ -33,16 +33,16 @@ class Trainer:
 
             # trial and error
             x_t, _ = env.reset()
-            self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
             self.agent.reset(x_t)
             print("Doing training steps...")
             for it in tqdm(range(dynamic_iters)):
                 # update when it's do
-                if it % self.hparams.dynamics_update_every == 0 and it > 0:
+                if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
 
                 # exploration
-                u_t = self.agent.act(x_t, task_id=task_id).detach().cpu().numpy()
+                _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL).detach().cpu().numpy()
+
                 x_tt, reward, terminated, truncated, info = env.step(u_t.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u_t, reward, x_tt, task_id)
                 x_t = x_tt
