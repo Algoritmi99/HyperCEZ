@@ -30,7 +30,7 @@ def main():
         cl_env_loader.add_task(i)
 
     trainer = Trainer(ez_agent, hparams, cl_env_loader)
-    trainer.train(5)
+    trainer.train(5000)
 
 
 if __name__ == "__main__":
