@@ -1,5 +1,6 @@
+from tqdm import tqdm
+
 from hypercez import Hparams
-from hypercez.agents import RandomAgent
 from hypercez.agents.agent_base import Agent
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.util.datautil import DataCollector
@@ -15,24 +16,27 @@ class Trainer:
     def train(self, dynamic_iters: int):
         self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
         for task_id in range(self.hparams.num_tasks):
+            print("Running task {}".format(task_id))
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
             x_t, _ = env.reset()
             self.agent.reset(x_t)
-            for it in range(self.hparams.init_rand_steps):
+            print("Doing initial random steps...")
+            for _ in tqdm(range(self.hparams.init_rand_steps)):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u, reward, x_tt, task_id)
                 x_t = x_tt
                 if terminated or truncated:
-                    x_t = env.reset()
+                    x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
             # trial and error
-            x_t = env.reset()
+            x_t, _ = env.reset()
             self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
             self.agent.reset(x_t)
-            for it in range(dynamic_iters):
+            print("Doing training steps...")
+            for it in tqdm(range(dynamic_iters)):
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0 and it > 0:
                     self.agent.learn(task_id)
@@ -44,5 +48,5 @@ class Trainer:
                 x_t = x_tt
 
                 if truncated or terminated:
-                    x_t = env.reset()
+                    x_t, _ = env.reset()
                     self.agent.reset(x_t)

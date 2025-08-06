@@ -128,14 +128,14 @@ class EZAgent(Agent):
         self.value_policy_detach = hparams.model[
             "value_policy_detach"] if not agent_type == AgentType.DMC_STATE else None
         self.v_num = hparams.train["v_num"]
-        self.mcts = MCTS(
-            num_actions=self.control_dim if self.agent_type == AgentType.ATARI
-                else self.hparams.mcts["num_sampled_actions"],
-            discount=self.reward_discount,
-            env=self.hparams.env,
-            **self.hparams.mcts,
-            **self.hparams.model
-        )
+        # self.mcts = MCTS(
+        #     num_actions=self.control_dim if self.agent_type == AgentType.ATARI
+        #         else self.hparams.mcts["num_sampled_actions"],
+        #     discount=self.reward_discount,
+        #     env=self.hparams.env,
+        #     **self.hparams.mcts,
+        #     **self.hparams.model
+        # )
         self.env_action_space = env_action_space
 
     def init_model_atari(self):
@@ -468,20 +468,26 @@ class EZAgent(Agent):
 
         values = values.detach().cpu().numpy().flatten()
 
+        mcts = MCTS(
+            num_actions=self.control_dim if self.agent_type == AgentType.ATARI
+            else self.hparams.mcts["num_sampled_actions"],
+            discount=self.reward_discount,
+            env=self.hparams.env,
+            **self.hparams.mcts,
+            **self.hparams.model
+        )
+
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
-                r_values, r_policies, best_actions, _ = self.mcts.search(
+                r_values, r_policies, best_actions, _ = mcts.search(
                     model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0
                 )
             else:
-                r_values, r_policies, best_actions, _ = self.mcts.search_ori_mcts(
+                r_values, r_policies, best_actions, _ = mcts.search_ori_mcts(
                     model, states.shape[0], states, values, policies, use_noise=False
                 )
         else:
-            # print(policies.shape)
-            # print(values.shape)
-            # print(states.shape)
-            r_values, r_policies, best_actions, _, _, _ = self.mcts.search_continuous(
+            r_values, r_policies, best_actions, _, _, _ = mcts.search_continuous(
                 model,
                 states.shape[0],
                 states,
