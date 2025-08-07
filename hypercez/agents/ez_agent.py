@@ -677,12 +677,12 @@ class EZAgent(Agent):
     def put_trajs(self, traj):
         if self.hparams.priority["use_priority"]:
             traj_len = len(traj)
-            pred_values = torch.from_numpy(np.array(traj.pred_value_lst)).cuda().float()
-            # search_values = torch.from_numpy(np.array(traj.search_value_lst)).cuda().float()
+            pred_values = torch.from_numpy(np.array(traj.pred_value_lst)).to(self.device).float()
+            # search_values = torch.from_numpy(np.array(traj.search_value_lst)).to(self.device).float()
             if self.hparams.model["value_target"] == 'bootstrapped':
-                target_values = torch.from_numpy(np.asarray(traj.get_bootstrapped_value())).cuda().float()
+                target_values = torch.from_numpy(np.asarray(traj.get_bootstrapped_value())).to(self.device).float()
             elif self.hparams.model["value_target"] == 'GAE':
-                target_values = torch.from_numpy(np.asarray(traj.get_gae_value())).cuda().float()
+                target_values = torch.from_numpy(np.asarray(traj.get_gae_value())).to(self.device).float()
             else:
                 raise NotImplementedError
             priorities = L1Loss(
@@ -1406,9 +1406,9 @@ class EZAgent(Agent):
         target_value_prefixes = target_value_prefixes[:, :unroll_steps]
 
         if self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI:
-            obs_batch_raw = torch.from_numpy(obs_batch_ori).cuda().float() / 255.
+            obs_batch_raw = torch.from_numpy(obs_batch_ori).to(self.device).float() / 255.
         else:
-            obs_batch_raw = torch.from_numpy(obs_batch_ori).cuda().float()
+            obs_batch_raw = torch.from_numpy(obs_batch_ori).to(self.device).float()
 
         obs_batch = obs_batch_raw[:, 0: n_stack * image_channel]  # obs_batch: current observation
         obs_target_batch = obs_batch_raw[:, image_channel:]  # obs_target_batch: observation of next steps
@@ -1419,22 +1419,22 @@ class EZAgent(Agent):
 
         # others to gpu
         if is_continuous:
-            action_batch = torch.from_numpy(action_batch).float().cuda()
+            action_batch = torch.from_numpy(action_batch).float().to(self.device)
         else:
-            action_batch = torch.from_numpy(action_batch).cuda().unsqueeze(-1).long()
-        mask_batch = torch.from_numpy(mask_batch).cuda().float()
-        weights = torch.from_numpy(weights_lst).cuda().float()
+            action_batch = torch.from_numpy(action_batch).to(self.device).unsqueeze(-1).long()
+        mask_batch = torch.from_numpy(mask_batch).to(self.device).float()
+        weights = torch.from_numpy(weights_lst).to(self.device).float()
 
         max_value_target = np.array([target_values, search_values]).max(0)
 
-        target_value_prefixes = torch.from_numpy(target_value_prefixes).cuda().float()
-        target_values = torch.from_numpy(target_values).cuda().float()
-        target_actions = torch.from_numpy(target_actions).cuda().float()
-        target_policies = torch.from_numpy(target_policies).cuda().float()
-        target_best_actions = torch.from_numpy(target_best_actions).cuda().float()
-        top_value_masks = torch.from_numpy(top_value_masks).cuda().float()
-        search_values = torch.from_numpy(search_values).cuda().float()
-        max_value_target = torch.from_numpy(max_value_target).cuda().float()
+        target_value_prefixes = torch.from_numpy(target_value_prefixes).to(self.device).float()
+        target_values = torch.from_numpy(target_values).to(self.device).float()
+        target_actions = torch.from_numpy(target_actions).to(self.device).float()
+        target_policies = torch.from_numpy(target_policies).to(self.device).float()
+        target_best_actions = torch.from_numpy(target_best_actions).to(self.device).float()
+        top_value_masks = torch.from_numpy(top_value_masks).to(self.device).float()
+        search_values = torch.from_numpy(search_values).to(self.device).float()
+        max_value_target = torch.from_numpy(max_value_target).to(self.device).float()
 
         # transform value and reward to support
         target_value_prefixes_support = DiscreteSupport.scalar_to_vector(target_value_prefixes,
@@ -1471,12 +1471,16 @@ class EZAgent(Agent):
         fresh_priority = L1Loss(reduction='none')(scaled_value.squeeze(-1),
                                                   this_target_values[:, 0]).detach().cpu().numpy()
         fresh_priority += self.hparams.priority["min_prior"]
-        replay_buffer.update_priorities.remote(indices, fresh_priority, make_time)
+        replay_buffer.update_priorities(indices, fresh_priority, make_time)
 
-        value_loss = torch.zeros(batch_size).cuda()
+        value_loss = torch.zeros(batch_size).to(self.device)
         value_loss += Value_loss(values, this_target_values[:, 0], self.hparams)
 
         if is_continuous:
+            print(policies.shape)
+            print(target_policies[:, 0].shape)
+            print(target_actions[:, 0].shape)
+            print(target_best_actions[:, 0])
             policy_loss, entropy_loss = continuous_loss(
                 policies, target_actions[:, 0], target_policies[:, 0],
                 target_best_actions[:, 0],
@@ -1491,11 +1495,11 @@ class EZAgent(Agent):
 
         else:
             policy_loss = kl_loss(policies, target_policies[:, 0])
-            entropy_loss = torch.zeros(batch_size).cuda()
+            entropy_loss = torch.zeros(batch_size).to(self.device)
 
-        value_prefix_loss = torch.zeros(batch_size).cuda()
-        consistency_loss = torch.zeros(batch_size).cuda()
-        policy_entropy_loss = torch.zeros(batch_size).cuda()
+        value_prefix_loss = torch.zeros(batch_size).to(self.device)
+        consistency_loss = torch.zeros(batch_size).to(self.device)
+        policy_entropy_loss = torch.zeros(batch_size).to(self.device)
         policy_entropy_loss -= entropy_loss
 
         # unroll k steps recurrently
@@ -1578,8 +1582,8 @@ class EZAgent(Agent):
 
     def init_reward_hidden(self, batch_size):
         if self.hparams.model["value_prefix"]:
-            reward_hidden = (torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).cuda(),
-                             torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).cuda())
+            reward_hidden = (torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).to(self.device),
+                             torch.zeros(1, batch_size, self.hparams.model["lstm_hidden_size"]).to(self.device))
         else:
             reward_hidden = None
         return reward_hidden
