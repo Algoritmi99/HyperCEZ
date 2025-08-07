@@ -1,3 +1,5 @@
+import torch
+
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
@@ -22,7 +24,12 @@ def main():
     for i in range(hparams.num_tasks):
         cl_env_loader.add_task(i)
 
-    trainer = Trainer(ez_agent, hparams, cl_env_loader)
+    trainer = Trainer(
+        ez_agent,
+        hparams,
+        cl_env_loader,
+        device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    )
     trainer.train(5000)
 
 

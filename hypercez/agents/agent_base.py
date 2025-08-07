@@ -1,6 +1,8 @@
 import copy
 from enum import IntEnum
 
+import torch
+
 
 class ActType(IntEnum):
     INITIAL = 0
@@ -18,6 +20,7 @@ class Agent:
         self.input_shape = None
         self.hparams = hparams
         self.training_mode = False
+        self.device = torch.device("cpu")
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         raise NotImplementedError
@@ -42,3 +45,7 @@ class Agent:
 
     def reset(self, obs):
         pass
+
+    def to(self, device=torch.device("cpu")):
+        self.model.to(device)
+        self.device = device

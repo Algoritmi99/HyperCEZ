@@ -1,3 +1,4 @@
+import torch
 from tqdm import tqdm
 
 from hypercez import Hparams
@@ -7,13 +8,16 @@ from hypercez.util.datautil import DataCollector
 
 
 class Trainer:
-    def __init__(self, agent: Agent, hparams: Hparams, env_loader: CLEnvLoader):
+    def __init__(self, agent: Agent, hparams: Hparams, env_loader: CLEnvLoader, device=torch.device("cpu")):
         self.agent = agent
         self.hparams = hparams
         self.env_loader = env_loader
         self.collector = DataCollector(self.hparams)
+        self.device = device
+        self.agent.to(self.device)
 
     def train(self, dynamic_iters: int):
+        print("Running Training sequence on", self.device)
         self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
         for task_id in range(self.hparams.num_tasks):
             print("Running task {}".format(task_id))
@@ -22,10 +26,11 @@ class Trainer:
             x_t, _ = env.reset()
             self.agent.reset(x_t)
             print("Doing initial random steps...")
-            for _ in tqdm(range(self.hparams.init_rand_steps)):
+            # for _ in tqdm(range(self.hparams.init_rand_steps)):
+            for _ in tqdm(range(1000)):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
-                self.agent.collect(x_t, u, reward, x_tt, task_id)
+                self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
                 x_t = x_tt
                 if terminated or truncated:
                     x_t, _ = env.reset()
@@ -43,7 +48,7 @@ class Trainer:
                 # exploration
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL).detach().cpu().numpy()
                 x_tt, reward, terminated, truncated, info = env.step(u_t.reshape(env.action_space.shape))
-                self.agent.collect(x_t, u_t, reward, x_tt, task_id)
+                self.agent.collect(x_t, u_t, reward, x_tt, task_id, done=terminated or truncated)
                 x_t = x_tt
 
                 if truncated or terminated:

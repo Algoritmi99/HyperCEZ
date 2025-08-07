@@ -130,6 +130,12 @@ class EZAgent(Agent):
         self.v_num = hparams.train["v_num"]
         self.env_action_space = env_action_space
 
+    def to(self, device=torch.device("cpu")):
+        for name, value in self.__dict__.items():
+            if hasattr(value, "to") and (isinstance(value, torch.Tensor) or isinstance(value, nn.Module)):
+                value.to(device)
+        self.device = device
+
     def init_model_atari(self):
         if isinstance(self.obs_shape, int):
             self.input_shape = copy.deepcopy(self.obs_shape) * self.hparams.model["n_stack"]
@@ -452,7 +458,7 @@ class EZAgent(Agent):
         current_stacked_obs = formalize_obs_lst(
             list(self.stacked_obs),
             image_based=self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
-        ).to(torch.device("cpu"))
+        ).to(self.device)
 
         with torch.no_grad():
             with autocast():
@@ -596,7 +602,7 @@ class EZAgent(Agent):
             if self.prev_traj is not None:
                 self.save_previous_trajectory(self.prev_traj, self.collector)
 
-            self.prev_traj = self.collector
+            self.prev_traj = copy.deepcopy(self.collector)
             self.collector = GameTrajectory(
                 n_stack=1,
                 discount=self.hparams.reward_discount,
@@ -757,6 +763,7 @@ class EZAgent(Agent):
                 _actions += [np.random.randint(0, self.env_action_space.n) for _ in range(self.hparams.train["unroll_steps"] - len(_actions))]
             else:
                 _actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
+                _actions = np.array([a.squeeze() for a in _actions])
                 _unroll_actions = traj.action_lst[state_index + 1:state_index + 1 + self.hparams.train["unroll_steps"]]
                 # _unroll_actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
                 _mask = [1. for _ in range(_unroll_actions.shape[0])]
@@ -1149,7 +1156,7 @@ class EZAgent(Agent):
                 current_obs = formalize_obs_lst(
                     current_obs,
                     self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
-                )
+                ).to(self.device)
                 # obtain the statistics at current steps
                 with autocast():
                     states, values, policies = self.reanalyze_model.initial_inference(current_obs)
@@ -1212,9 +1219,18 @@ class EZAgent(Agent):
         # temperature
         temperature = self.get_temperature(trained_steps=trained_steps) #* np.ones((batch_size, 1))
 
+        mcts = MCTS(
+            num_actions=self.control_dim if self.agent_type == AgentType.ATARI
+            else self.hparams.mcts["num_sampled_actions"],
+            discount=self.reward_discount,
+            env=self.hparams.env,
+            **self.hparams.mcts,
+            **self.hparams.model
+        )
+
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
-                r_values, r_policies, best_actions, _ = self.mcts.search(
+                r_values, r_policies, best_actions, _ = mcts.search(
                     self.reanalyze_model,
                     batch_size,
                     state_lst,
@@ -1224,7 +1240,7 @@ class EZAgent(Agent):
                     temperature=temperature
                 )
             else:
-                r_values, r_policies, best_actions, _ = self.mcts.search_ori_mcts(
+                r_values, r_policies, best_actions, _ = mcts.search_ori_mcts(
                     self.reanalyze_model,
                     batch_size,
                     state_lst,
@@ -1238,7 +1254,7 @@ class EZAgent(Agent):
             search_best_indexes = best_actions
         else:
 
-            r_values, r_policies, best_actions, sampled_actions, search_best_indexes, _ = self.mcts.search_continuous(
+            r_values, r_policies, best_actions, sampled_actions, search_best_indexes, _ = mcts.search_continuous(
                 self.reanalyze_model,
                 batch_size,
                 state_lst,
@@ -1361,7 +1377,7 @@ class EZAgent(Agent):
         image_channel = self.obs_shape[0] if (
                 self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
         ) else self.obs_shape
-        unroll_steps = self.hparams.rl["unroll_steps"]
+        unroll_steps = self.hparams.train["unroll_steps"]
         n_stack = self.hparams.model["n_stack"]
         gradient_scale = 1. / unroll_steps
         reward_hidden = self.init_reward_hidden(batch_size)
@@ -1398,7 +1414,7 @@ class EZAgent(Agent):
         obs_target_batch = obs_batch_raw[:, image_channel:]  # obs_target_batch: observation of next steps
 
         # augmentation
-        obs_batch = self.transform(obs_batch)
+        obs_batch = self.transform(obs_batch).to(self.device)
         obs_target_batch = self.transform(obs_target_batch)
 
         # others to gpu
