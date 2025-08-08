@@ -6,6 +6,7 @@ from hypercez.agents.ez_agent import AgentType
 from hypercez.envs.cl_env import CLEnvLoader
 
 from hypercez.trainer import Trainer
+from hypercez.util.plotter import Plotter
 
 
 def main():
@@ -24,11 +25,14 @@ def main():
     for i in range(hparams.num_tasks):
         cl_env_loader.add_task(i)
 
+    plotter = Plotter()
+
     trainer = Trainer(
         ez_agent,
         hparams,
         cl_env_loader,
-        device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        plotter=plotter,
     )
     trainer.train(hparams.train["training_steps"])
 
