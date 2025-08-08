@@ -8,13 +8,14 @@ from hypercez.util.datautil import DataCollector
 
 
 class Trainer:
-    def __init__(self, agent: Agent, hparams: Hparams, env_loader: CLEnvLoader, device=torch.device("cpu")):
+    def __init__(self, agent: Agent, hparams: Hparams, env_loader: CLEnvLoader, device=torch.device("cpu"), plotter=None):
         self.agent = agent
         self.hparams = hparams
         self.env_loader = env_loader
         self.collector = DataCollector(self.hparams)
         self.device = device
         self.agent.to(self.device)
+        self.plotter = plotter
 
     def train(self, dynamic_iters: int):
         print("Running Training sequence on", self.device)
@@ -30,6 +31,10 @@ class Trainer:
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
+
+                if self.plotter is not None:
+                    self.plotter.step(reward, terminated or truncated, task_id)
+
                 x_t = x_tt
                 if terminated or truncated:
                     x_t, _ = env.reset()
@@ -48,8 +53,11 @@ class Trainer:
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
                 x_tt, reward, terminated, truncated, info = env.step(u_t.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u_t, reward, x_tt, task_id, done=terminated or truncated)
-                x_t = x_tt
 
+                if self.plotter is not None:
+                    self.plotter.step(reward, terminated or truncated, task_id)
+
+                x_t = x_tt
                 if truncated or terminated:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
