@@ -834,6 +834,7 @@ class EZAgent(Agent):
             batch_best_actions = best_actions.reshape(
                 batch_size,
                 self.hparams.train["unroll_steps"] + 1,
+                -1,
                 self.control_dim
             )
             batch_actions = np.ones_like(batch_policies)
@@ -1287,7 +1288,7 @@ class EZAgent(Agent):
                     if self.agent_type != AgentType.ATARI:
                         target_policies.append([0 for _ in range(sampled_actions.shape[1])])
                     else:
-                        target_policies.append([0 for _ in range(self.env_action_space.n)])
+                        target_policies.append([0 for _ in range(self.control_dim)])
                 policy_masks[-1].append(policy_mask[policy_index])
                 policy_index += 1
             batch_policies.append(target_policies)
@@ -1480,7 +1481,7 @@ class EZAgent(Agent):
             print(policies.shape)
             print(target_policies[:, 0].shape)
             print(target_actions[:, 0].shape)
-            print(target_best_actions[:, 0])
+            print(target_best_actions[:, 0].shape)
             policy_loss, entropy_loss = continuous_loss(
                 policies, target_actions[:, 0], target_policies[:, 0],
                 target_best_actions[:, 0],
