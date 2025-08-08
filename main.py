@@ -30,7 +30,7 @@ def main():
         cl_env_loader,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
-    trainer.train(5000)
+    trainer.train(hparams.train["training_steps"])
 
 
 if __name__ == "__main__":

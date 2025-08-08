@@ -1479,10 +1479,6 @@ class EZAgent(Agent):
         value_loss += Value_loss(values, this_target_values[:, 0], self.hparams)
 
         if is_continuous:
-            print(policies.shape)
-            print(target_policies[:, 0].shape)
-            print(target_actions[:, 0].shape)
-            print(target_best_actions[:, 0].shape)
             policy_loss, entropy_loss = continuous_loss(
                 policies, target_actions[:, 0], target_policies[:, 0],
                 target_best_actions[:, 0],
