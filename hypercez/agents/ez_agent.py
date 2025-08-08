@@ -834,10 +834,11 @@ class EZAgent(Agent):
             batch_best_actions = best_actions.reshape(
                 batch_size,
                 self.hparams.train["unroll_steps"] + 1,
-                -1,
                 self.control_dim
             )
-            batch_actions = np.ones_like(batch_policies)
+            batch_actions = sampled_actions.reshape(
+                batch_size, self.hparams.train["unroll_steps"] + 1, -1, self.control_dim
+            )
 
         targets_batch = [batch_value_prefixes,
                          batch_values,
