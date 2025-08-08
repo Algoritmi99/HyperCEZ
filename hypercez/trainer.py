@@ -61,3 +61,7 @@ class Trainer:
                 if truncated or terminated:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
+
+        if self.plotter is not None:
+            self.plotter.plot()
+            self.plotter.plot_taskwise()
