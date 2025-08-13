@@ -7,8 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.cuda.amp import GradScaler as GradScaler
-from torch.cuda.amp import autocast as autocast
 from torch.nn import L1Loss
 
 from hypercez.agents.agent_base import Agent, ActType
@@ -461,7 +459,7 @@ class EZAgent(Agent):
         ).to(self.device)
 
         with torch.no_grad():
-            with autocast():
+            with torch.amp.autocast(self.device.type):
                 states, values, policies = model.initial_inference(current_stacked_obs)
 
         values = values.detach().cpu().numpy().flatten()
@@ -537,7 +535,7 @@ class EZAgent(Agent):
         else:
             self.scheduler = None
 
-        self.scaler = GradScaler()
+        self.scaler = torch.amp.GradScaler()
         self.step_count = 0
         self.recent_weights = self.model.get_weights()
         self.self_play_return = 0.
@@ -1160,7 +1158,7 @@ class EZAgent(Agent):
                     self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI
                 ).to(self.device)
                 # obtain the statistics at current steps
-                with autocast():
+                with torch.amp.autocast(self.device.type):
                     states, values, policies = self.reanalyze_model.initial_inference(current_obs)
 
                 # process outputs
@@ -1347,7 +1345,8 @@ class EZAgent(Agent):
 
     def learn(self, task_id: int):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
-        batch = self.make_batch()
+        self.make_batch()
+        batch = self.batch_storage.pop()
         lr = self.adjust_lr(self.optimizer, self.trained_steps, self.scheduler)
 
         if self.trained_steps % 30 == 0:
@@ -1442,7 +1441,7 @@ class EZAgent(Agent):
         target_value_prefixes_support = DiscreteSupport.scalar_to_vector(target_value_prefixes,
                                                                          **self.hparams.model["reward_support"])
 
-        with autocast():
+        with torch.amp.autocast(self.device.type):
             states, values, policies = model.initial_inference(obs_batch, training=True)
 
         if self.hparams.model["value_support"]["type"] == 'symlog':
@@ -1501,7 +1500,7 @@ class EZAgent(Agent):
         policy_entropy_loss -= entropy_loss
 
         # unroll k steps recurrently
-        with autocast():
+        with torch.amp.autocast(self.device.type):
             for step_i in range(unroll_steps):
                 mask = mask_batch[:, step_i]
                 states, value_prefixes, values, policies, reward_hidden = model.recurrent_inference(states,
@@ -1562,7 +1561,7 @@ class EZAgent(Agent):
 
         # backward
         parameters = model.parameters()
-        with autocast():
+        with torch.amp.autocast(self.device.type):
             weighted_loss.register_hook(lambda grad: grad * gradient_scale)
         optimizer.zero_grad()
         scaler.scale(weighted_loss).backward()

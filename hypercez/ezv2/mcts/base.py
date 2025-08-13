@@ -6,7 +6,6 @@
 import torch
 import math
 from hypercez.util.distribution import SquashedNormal
-from torch.cuda.amp import autocast as autocast
 import numpy as np
 
 
@@ -143,7 +142,7 @@ class MCTS_base:
             next_value_prefixes = 0
             for _ in range(self.mpc_horizon):
                 with torch.no_grad():
-                    with autocast():
+                    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
                         states, pred_value_prefixes, next_values, next_logits, reward_hidden = \
                             model.recurrent_inference(states, last_actions, reward_hidden)
                 # last_actions = self.sample_mpc_actions(next_logits)
@@ -177,7 +176,7 @@ class MCTS_base:
         for i in range(actions.shape[0]):
             current_states_hidden = None
             with torch.no_grad():
-                with autocast():
+                with torch.amp.autocast():
                     next_states, next_value_prefixes, next_values, next_logits, reward_hidden = model.recurrent_inference(current_states, actions[i], reward_hidden)
 
             next_value_prefixes = next_value_prefixes.detach()
