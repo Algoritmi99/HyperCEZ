@@ -128,12 +128,6 @@ class EZAgent(Agent):
         self.v_num = hparams.train["v_num"]
         self.env_action_space = env_action_space
 
-    def to(self, device=torch.device("cpu")):
-        for name, value in self.__dict__.items():
-            if hasattr(value, "to") and (isinstance(value, torch.Tensor) or isinstance(value, nn.Module)):
-                value.to(device)
-        self.device = device
-
     def init_model_atari(self):
         if isinstance(self.obs_shape, int):
             self.input_shape = copy.deepcopy(self.obs_shape) * self.hparams.model["n_stack"]

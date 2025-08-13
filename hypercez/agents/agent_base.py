@@ -2,6 +2,7 @@ import copy
 from enum import IntEnum
 
 import torch
+import torch.nn as nn
 
 
 class ActType(IntEnum):
@@ -47,7 +48,9 @@ class Agent:
         pass
 
     def to(self, device=torch.device("cpu")):
-        self.model.to(device)
+        for name, value in self.__dict__.items():
+            if hasattr(value, "to") and (isinstance(value, torch.Tensor) or isinstance(value, nn.Module)):
+                value.to(device)
         self.device = device
 
     def save(self, path):
