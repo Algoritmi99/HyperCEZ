@@ -49,3 +49,15 @@ class Agent:
     def to(self, device=torch.device("cpu")):
         self.model.to(device)
         self.device = device
+
+    def save(self, path):
+        ckpt = {copy.deepcopy(i): copy.deepcopy(v) for i, v in self.__dict__.items()}
+        torch.save(ckpt, path)
+
+    @classmethod
+    def load(cls, path, map_location='cpu'):
+        ckpt = torch.load(path, map_location=map_location)
+        out = cls(ckpt["hparams"])
+        for i, v in ckpt.items():
+            out.__dict__[i] = v
+        return out
