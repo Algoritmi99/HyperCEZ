@@ -81,15 +81,6 @@ class EZAgent(Agent):
     def __init__(self, hparams, agent_type: AgentType, env_action_space=None):
         super(EZAgent, self).__init__(hparams)
         self.trained_steps = None
-        self.eval_counter = None
-        self.prev_eval_counter = None
-        self.eval_best_score = None
-        self.eval_score = None
-        self.transition_num = None
-        self.traj_num = None
-        self.self_play_return = None
-        self.recent_weights = None
-        self.step_count = None
         self.scaler = None
         self.scheduler = None
         self.max_steps = None
@@ -425,6 +416,20 @@ class EZAgent(Agent):
             trajectory_size=self.hparams.data["trajectory_size"]
         )
 
+    def reset_full_memory(self, obs):
+        self.reset(obs)
+        self.traj_pool = []
+
+        self.replay_buffer = ReplayBuffer(
+            batch_size=self.hparams.train["batch_size"],
+            buffer_size=self.hparams.data["buffer_size"],
+            top_transitions=self.hparams.data["top_transitions"],
+            use_priority=self.hparams.priority["use_priority"],
+            env=self.hparams.env,
+            total_transitions=self.hparams.data["total_transitions"]
+        )
+        self.batch_storage = FIFOQueue()
+
     def get_model(self, model_name: str = None):
         if model_name is None:
             return self.model
@@ -530,13 +535,6 @@ class EZAgent(Agent):
             self.scheduler = None
 
         self.scaler = torch.amp.GradScaler()
-        self.step_count = 0
-        self.recent_weights = self.model.get_weights()
-        self.self_play_return = 0.
-        self.traj_num, self.transition_num = 0, 0
-        self.eval_score, self.eval_best_score = 0., 0.
-        self.prev_eval_counter = -1
-        self.eval_counter = 0
         self.trained_steps = 0
 
         self.collector = GameTrajectory(
@@ -1341,7 +1339,7 @@ class EZAgent(Agent):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
         self.make_batch()
         batch = self.batch_storage.pop()
-        lr = self.adjust_lr(self.optimizer, self.trained_steps, self.scheduler)
+        self.adjust_lr(self.optimizer, self.trained_steps, self.scheduler)
 
         if self.trained_steps % 30 == 0:
             self.latest_model = copy.deepcopy(self.model)
