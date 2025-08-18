@@ -7,6 +7,7 @@ from hypercez.agents import EZAgent
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.agents.ez_agent import AgentType
 from hypercez.hypernet import build_hnet
+from hypercez.util.hypercez_data_mng import HyperCEZDataManager
 
 
 class AgentCtrlType(IntEnum):
@@ -49,6 +50,7 @@ class HyperCEZAgent(Agent):
         self.collector = collector
         self.control_type = ctrl_type
         self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
+        self.memory_manager = HyperCEZDataManager(self.ez_agent)
 
     def init_model(self):
         if self.ez_agent is None:
@@ -92,4 +94,6 @@ class HyperCEZAgent(Agent):
         return self.act(obs, task_id, act_type)
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
-        pass
+        self.memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
+
+
