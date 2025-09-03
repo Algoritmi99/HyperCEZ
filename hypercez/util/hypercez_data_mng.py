@@ -1,4 +1,5 @@
 from hypercez.agents import EZAgent
+from hypercez.util.datautil import DataCollector
 
 
 class HyperCEZDataManager:
@@ -9,6 +10,7 @@ class HyperCEZDataManager:
         self.replay_buffer_map = {}
         self.batch_storage_map = {}
         self.prev_traj_map = {}
+        self.hyper_crl_collector = DataCollector(ez_agent.hparams)
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
         if (
@@ -39,6 +41,6 @@ class HyperCEZDataManager:
 
             self.ez_agent.collect(x_t, u_t, reward, x_tt, task_id, done=done)
 
+        self.hyper_crl_collector.add(x_t, u_t, reward, x_tt, task_id)
+
         self.ez_agent.mem_id = task_id
-
-

@@ -12,6 +12,7 @@ from hypercez.hypernet.hypercl.utils import hnet_regularizer as hreg
 from hypercez.hypernet.hypercl.utils import ewc_regularizer as ewc
 from hypercez.hypernet.hypercl.utils import si_regularizer as si
 from hypercez.hypernet.hypercl.utils import optim_step as opstep
+from hypercez.hypernet.task_loss import TaskLoss, TaskLossMT, TaskLossReplay
 
 
 class AgentCtrlType(IntEnum):
@@ -137,8 +138,62 @@ class HyperCEZAgent(Agent):
             for task_id in range(self.hparams.num_tasks):
                 self.reg_targets[hnet_name][task_id] = hreg.get_current_targets(task_id, self.hnet_map[hnet_name])
 
+                if self.hnet_type == HNetType.HNET_MT:
+                    # Loss Function
+                    self.mlls[hnet_name][task_id] = TaskLossMT(
+                        self.hparams, self.ez_agent.model.__getattr__(hnet_name),
+                        self.hnet_map[hnet_name],
+                        self.__memory_manager.hyper_crl_collector,
+                        task_id
+                    )
+                elif self.hnet_type == HNetType.HNET_REPLAY:
+                    self.mlls[hnet_name][task_id] = TaskLossReplay(
+                        self.hparams, self.ez_agent.model.__getattr__(hnet_name),
+                        self.hnet_map[hnet_name],
+                        self.__memory_manager.hyper_crl_collector,
+                        task_id
+                    )
+                else:
+                    self.mlls[hnet_name][task_id] = TaskLoss(self.hparams, self.ez_agent.model.__getattr__(hnet_name))
 
+                self.fisher_ests[hnet_name][task_id] = None
+                if self.hparams.ewc_weight_importance and task_id > 0:
+                    self.fisher_ests[hnet_name][task_id] = []
+                    n_W = len(self.hnet_map[hnet_name].target_shapes)
+                    for t in range(task_id):
+                        ff = []
+                        for i in range(n_W):
+                            _, buff_f_name = ewc._ewc_buffer_names(t, i, False)
+                            ff.append(getattr(self.ez_agent.model.__getattr__(hnet_name), buff_f_name))
+                        self.fisher_ests[hnet_name][task_id].append(ff)
 
+                self.si_omegas[hnet_name][task_id] = None
+                if self.hnet_type == HNetType.HNET_SI:
+                    si.si_register_buffer(
+                        self.ez_agent.model.__getattr__(hnet_name),
+                        self.hnet_map[hnet_name],
+                        task_id
+                    )
+                    if task_id > 0:
+                        self.si_omegas[hnet_name][task_id] = si.get_si_omega(
+                            self.ez_agent.model.__getattr__(hnet_name),
+                            task_id
+                        )
+
+                self.regularized_params[hnet_name][task_id] = list(self.hnet_map[hnet_name].theta)
+                if task_id > 0 and self.hparams.plastic_prev_tembs:
+                    for i in range(task_id):  # for all previous task embeddings
+                        self.regularized_params[hnet_name][task_id].append(self.hnet_map[hnet_name].get_task_emb(i))
+
+                self.theta_optims[hnet_name][task_id] = torch.optim.Adam(
+                    self.regularized_params[hnet_name][task_id],
+                    lr=self.hparams.lr_hyper
+                )
+
+                self.emb_optims[hnet_name][task_id] = torch.optim.Adam(
+                    [self.hnet_map[hnet_name].get_task_emb(task_id)],
+                    lr=self.hparams.lr_hyper
+                )
 
         self.__training_mode = True
 
