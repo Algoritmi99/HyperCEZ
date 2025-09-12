@@ -3,7 +3,7 @@ import torch
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
-from hypercez.agents.hypercez_agent import HyperCEZAgent, AgentCtrlType
+from hypercez.agents.hypercez_agent import HyperCEZAgent, AgentCtrlType, HNetType
 from hypercez.envs.cl_env import CLEnvLoader
 
 from hypercez.trainer import Trainer
@@ -22,9 +22,6 @@ def main():
     # print(hparams.ewc_weight_importance)
     # print(hparams.plastic_prev_tembs)
     # print(hparams.lr_hyper)
-    print(hparams.beta)
-    print(hparams.plastic_prev_tembs)
-    raise NotImplementedError
 
     ez_agent = EZAgent(
         hparams,
@@ -38,7 +35,7 @@ def main():
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,
-        None,
+        HNetType.HNET,
         None,
         AgentCtrlType.CONTINUOUS,
         "representation_model",
@@ -51,11 +48,6 @@ def main():
 
     hyper_cez_agent.init_model()
 
-    hyper_cez_agent.generate_main_weights(0)
-    hyper_cez_agent.generate_main_weights(1)
-    hyper_cez_agent.generate_main_weights(2)
-    print("main weights generated")
-
     cl_env_loader = CLEnvLoader(hparams.env)
     for i in range(hparams.num_tasks):
         cl_env_loader.add_task(i)
@@ -63,7 +55,7 @@ def main():
     plotter = Plotter()
 
     trainer = Trainer(
-        ez_agent,
+        hyper_cez_agent,
         hparams,
         cl_env_loader,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),

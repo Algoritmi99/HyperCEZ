@@ -34,7 +34,6 @@ class HyperCEZAgent(Agent):
                  ez_agent: EZAgent = None,
                  hnet_type: HNetType = HNetType.HNET,
                  hnet_map: dict[str, nn.Module] = None,
-                 collector=None,
                  ctrl_type=AgentCtrlType.CONTINUOUS,
                  *args: str,
                  ):
@@ -53,13 +52,11 @@ class HyperCEZAgent(Agent):
         :param hparams: HParams object with added values
         :param ez_agent: EZAgent object correctly initialized
         :param hnet_map: a map with keys being one of the names mentioned above or "all" and values being nn.Module objects
-        :param collector:
         :param ctrl_type: Specifies the type of controller to be used (img based, discrete or continuous)
         :param args: a listing of names of agent including one or more of the names listed above or "all", to create hnets for if hnet_map is not provided.
         """
         super().__init__(hparams)
         self.reg_targets = None
-        self.mlls = None
         self.theta_optims = None
         self.emb_optims = None
         self.regularized_params = None
@@ -68,7 +65,6 @@ class HyperCEZAgent(Agent):
         self.ez_agent = ez_agent
         self.hnet_type = hnet_type
         self.hnet_map = hnet_map
-        self.collector = collector
         self.control_type = ctrl_type
         self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
         self.__memory_manager = HyperCEZDataManager(self.ez_agent)
@@ -128,7 +124,6 @@ class HyperCEZAgent(Agent):
     def train(self, total_train_steps):
         # structure of keys: hnet_name -> task_id -> object
         self.reg_targets = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.mlls = {hnet_name: {} for hnet_name in self.hnet_component_names}
         self.theta_optims = {hnet_name: {} for hnet_name in self.hnet_component_names}
         self.emb_optims = {hnet_name: {} for hnet_name in self.hnet_component_names}
         self.regularized_params = {hnet_name: {} for hnet_name in self.hnet_component_names}
@@ -138,24 +133,6 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             for task_id in range(self.hparams.num_tasks):
                 self.reg_targets[hnet_name][task_id] = hreg.get_current_targets(task_id, self.hnet_map[hnet_name])
-
-                if self.hnet_type == HNetType.HNET_MT:
-                    # Loss Function
-                    self.mlls[hnet_name][task_id] = TaskLossMT(
-                        self.hparams, self.ez_agent.model.__getattr__(hnet_name),
-                        self.hnet_map[hnet_name],
-                        self.__memory_manager.hyper_crl_collector,
-                        task_id
-                    )
-                elif self.hnet_type == HNetType.HNET_REPLAY:
-                    self.mlls[hnet_name][task_id] = TaskLossReplay(
-                        self.hparams, self.ez_agent.model.__getattr__(hnet_name),
-                        self.hnet_map[hnet_name],
-                        self.__memory_manager.hyper_crl_collector,
-                        task_id
-                    )
-                else:
-                    self.mlls[hnet_name][task_id] = TaskLoss(self.hparams, self.ez_agent.model.__getattr__(hnet_name))
 
                 self.fisher_ests[hnet_name][task_id] = None
                 if self.hparams.ewc_weight_importance and task_id > 0:
