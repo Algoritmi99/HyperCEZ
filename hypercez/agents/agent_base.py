@@ -49,7 +49,7 @@ class Agent:
 
     def to(self, device=torch.device("cpu")):
         for name, value in self.__dict__.items():
-            if hasattr(value, "to") and (isinstance(value, torch.Tensor) or isinstance(value, nn.Module)):
+            if hasattr(value, "to") and (isinstance(value, torch.Tensor) or isinstance(value, nn.Module) or isinstance(value, Agent)):
                 value.to(device)
         self.device = device
 

@@ -29,9 +29,6 @@ def main():
     )
     ez_agent.init_model()
 
-    print([i for i in (ez_agent.model.dynamics_model.named_parameters())])
-    print(len([i for i in ez_agent.model.dynamics_model.parameters()]))
-
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,

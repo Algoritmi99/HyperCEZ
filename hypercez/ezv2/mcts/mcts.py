@@ -58,7 +58,7 @@ class MCTS(MCTS_base):
 
     def search_continuous(self, model, batch_size, root_states, root_values, root_policy_logits,
                           use_gumble_noise=False, temperature=1.0, verbose=0, add_noise=True,
-                          input_noises=None, input_dist=None, input_actions=None, prev_mean=None, **kwargs):
+                          input_noises=None, input_dist=None, input_actions=None, prev_mean=None, model_state=None, **kwargs):
         # preparation
         # Node.set_static_attributes(self.discount, self.num_actions)  # set static parameters of MCTS
         # set root nodes for the batch
@@ -160,6 +160,7 @@ class MCTS(MCTS_base):
                 states=current_states,                              # current states
                 actions=selected_actions,                           # last actions
                 reward_hidden=reward_hidden,                        # reward hidden
+                model_state=model_state
             )
             mcts_info[simulation_idx] = {
                 'next_states': next_states,
@@ -237,7 +238,7 @@ class MCTS(MCTS_base):
         return action_pos
 
     def search_ori_mcts(self, model, batch_size, root_states, root_values, root_policy_logits,
-                        use_noise=True, temperature=1.0, verbose=0, is_reanalyze=False, **kwargs):
+                        use_noise=True, temperature=1.0, verbose=0, is_reanalyze=False, model_state=None, **kwargs):
         # preparation
         # set dirichley noise (during training)
         if use_noise:
@@ -312,6 +313,7 @@ class MCTS(MCTS_base):
                 states=current_states,                              # current states
                 actions=last_actions,                               # last actions
                 reward_hidden=reward_hidden,                        # reward hidden
+                model_state=model_state
             )
 
             # save to database
@@ -354,7 +356,7 @@ class MCTS(MCTS_base):
 
 
     def search(self, model, batch_size, root_states, root_values, root_policy_logits,
-               use_gumble_noise=True, temperature=1.0, verbose=0, **kwargs):
+               use_gumble_noise=True, temperature=1.0, verbose=0, model_state=None, **kwargs):
         # preparation
         # Node.set_static_attributes(self.discount, self.num_actions)  # set static parameters of MCTS
         # set root nodes for the batch
@@ -439,6 +441,7 @@ class MCTS(MCTS_base):
                 states=current_states,                              # current states
                 actions=last_actions,                               # last actions
                 reward_hidden=reward_hidden,                        # reward hidden
+                model_state=model_state
             )
             mcts_info[simulation_idx] = {
                 'next_states': next_states,
@@ -551,11 +554,12 @@ class Gumbel_MCTS(object):
             current_states = kwargs.get('states')
             last_actions = kwargs.get('actions')
             reward_hidden = kwargs.get('reward_hidden')
+            model_state=kwargs.get('model_state')
 
             with torch.no_grad():
                 with autocast():
                     next_states, next_value_prefixes, next_values, next_logits, reward_hidden = \
-                        model.recurrent_inference(current_states, last_actions, reward_hidden)
+                        model.recurrent_inference(current_states, last_actions, reward_hidden, model_state=model_state)
 
             # process outputs
             next_values = next_values.detach().cpu().numpy().flatten()

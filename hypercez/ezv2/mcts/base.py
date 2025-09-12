@@ -138,13 +138,14 @@ class MCTS_base:
             states = kwargs.get('states')
             last_actions = kwargs.get('actions')
             reward_hidden = kwargs.get('reward_hidden')
+            model_state = kwargs.get('model_state')
 
             next_value_prefixes = 0
             for _ in range(self.mpc_horizon):
                 with torch.no_grad():
                     with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu'):
                         states, pred_value_prefixes, next_values, next_logits, reward_hidden = \
-                            model.recurrent_inference(states, last_actions, reward_hidden)
+                            model.recurrent_inference(states, last_actions, reward_hidden, model_state=model_state)
                 # last_actions = self.sample_mpc_actions(next_logits)
                 next_value_prefixes += pred_value_prefixes
 

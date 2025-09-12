@@ -13,7 +13,6 @@ from hypercez.hypernet.hypercl.utils import hnet_regularizer as hreg
 from hypercez.hypernet.hypercl.utils import ewc_regularizer as ewc
 from hypercez.hypernet.hypercl.utils import si_regularizer as si
 from hypercez.hypernet.hypercl.utils import optim_step as opstep
-from hypercez.hypernet.task_loss import TaskLoss, TaskLossMT, TaskLossReplay
 
 
 class AgentCtrlType(IntEnum):
@@ -69,6 +68,7 @@ class HyperCEZAgent(Agent):
         self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
         self.__memory_manager = HyperCEZDataManager(self.ez_agent)
         self.__training_mode = False
+        self.__dtype = None
 
     def init_model(self):
         if self.ez_agent is None:
@@ -91,6 +91,12 @@ class HyperCEZAgent(Agent):
 
         assert self.ez_agent is not None and self.hnet_map is not None
 
+    def to(self, device=torch.device("cpu")):
+        super().to(device)
+        for hnet_name in self.hnet_component_names:
+            self.hnet_map[hnet_name].to(device)
+
+
     def generate_main_weights(self, task_id):
         assert self.hnet_map is not None
         for hnet_name in self.hnet_component_names:
@@ -110,8 +116,12 @@ class HyperCEZAgent(Agent):
             with torch.no_grad():
                 for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                     assert p.shape == w.shape
+                    w = w.to(device=p.device, dtype=p.dtype, non_blocking=True)
                     p.copy_(w)
+                    if self.__dtype is None:
+                        self.__dtype = torch.float32
             for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
+                w = w.to(device=p.device, dtype=p.dtype)
                 assert torch.equal(p, w)
         return self.ez_agent.act(obs, task_id, act_type)
 
@@ -207,6 +217,8 @@ class HyperCEZAgent(Agent):
                     [param_name for param_name, _ in self.ez_agent.model.__getattr__(hnet_name).named_parameters()]
             ):
                 model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
+                if self.__dtype is not None:
+                    model_state[param_name] = torch.tensor(model_state[param_name], dtype=self.__dtype)
             full_state[hnet_name] = model_state
 
         # calculate loss
