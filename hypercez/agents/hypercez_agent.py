@@ -1,3 +1,4 @@
+import copy
 from enum import IntEnum
 
 import torch
@@ -195,12 +196,126 @@ class HyperCEZAgent(Agent):
                     lr=self.hparams.lr_hyper
                 )
 
+        # put hnets and ez_agent to training mode
+        [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
+        self.ez_agent.train(total_train_steps)
+
         self.__training_mode = True
 
-    def __fwd_pass(self, obs, task_id):
-        pass
-
     def learn(self, task_id):
-        pass
+        assert self.__training_mode
+        batch = self.__memory_manager.make_batch(task_id)
 
+        # Whether the regularizer will be computed during training?
+        calc_reg = task_id > 0 and self.hparams.beta > 0
 
+        # ready optimizers
+        for hnet_name in self.hnet_component_names:
+            self.theta_optims[hnet_name][task_id].zero_grad()
+            self.emb_optims[hnet_name][task_id].zero_grad()
+
+        # forward pass through hypernets and create model state
+        full_state = {}
+        for hnet_name in self.hnet_component_names:
+            new_weights = self.hnet_map[hnet_name](task_id)
+
+            if self.hnet_type == HNetType.HNET_SI:
+                # save grad for calculate si path integral if so
+                si.si_update_optim_step(self.ez_agent.model.__getattr__(hnet_name), new_weights, task_id)
+                for weight in new_weights:
+                    weight.retain_grad()
+
+            model_state = {}
+            for i, param_name in enumerate(
+                    [param_name for param_name, _ in self.ez_agent.model.__getattr__(hnet_name).named_parameters()]
+            ):
+                model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
+            full_state[hnet_name] = model_state
+
+        # calculate loss
+        loss_task = self.ez_agent.calc_loss(
+            self.ez_agent.model,
+            batch,
+            copy.deepcopy(self.__memory_manager.replay_buffer_map[task_id]),
+            self.ez_agent.trained_steps,
+            target_model=copy.deepcopy(self.ez_agent.reanalyze_model),
+            model_state=full_state
+        )
+        with torch.amp.autocast(self.device.type):
+            loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
+
+        self.ez_agent.scaler.scale(loss_task).backward()
+
+        loss_task.backward(retain_graph=calc_reg,
+                           create_graph=self.hparams.backprop_dt and calc_reg)
+
+        for hnet_name in self.hnet_component_names:
+            weights = [v for _, v in full_state[hnet_name]]
+            # clip grads
+            torch.nn.utils.clip_grad_norm_(self.hnet_map[hnet_name].get_task_emb(task_id), self.hparams.grad_max_norm)
+
+            # Note, the gradients accumulated so far are from "loss_task".
+            self.emb_optims[hnet_name][task_id].step()
+
+            # SI
+            if self.hnet_type == HNetType.HNET_SI:
+                torch.nn.utils.clip_grad_norm_(
+                    weights,
+                    self.hparams.grad_max_norm
+                )
+                si.si_update_grad(self.ez_agent.model.__getattr__(hnet_name), weights, task_id)
+
+            # Update Regularization
+            grad_tloss = None
+            if calc_reg:
+                if i % 1000 == 0:  # Just for debugging: displaying grad magnitude.
+                    grad_tloss = torch.cat([d.grad.clone().view(-1) for d in
+                                            self.hnet_map[hnet_name].theta])
+                if self.hparams.no_look_ahead:
+                    dTheta = None
+                else:
+                    dTheta = opstep.calc_delta_theta(self.theta_optims[hnet_name][task_id],
+                                                     self.hparams.use_sgd_change, lr=self.hparams.lr_hyper,
+                                                     detach_dt=not self.hparams.backprop_dt)
+
+                if self.hparams.plastic_prev_tembs:
+                    dTembs = dTheta[-task_id:]
+                    dTheta = dTheta[:-task_id] if dTheta is not None else None
+                else:
+                    dTembs = None
+
+                loss_reg = hreg.calc_fix_target_reg(self.hnet_map[hnet_name],
+                                                    task_id,
+                                                    targets=self.reg_targets[hnet_name][task_id],
+                                                    dTheta=dTheta,
+                                                    dTembs=dTembs,
+                                                    mnet=self.ez_agent.model.__getattr__(hnet_name),
+                                                    inds_of_out_heads=None,
+                                                    fisher_estimates=self.fisher_ests[hnet_name][task_id],
+                                                    si_omega=self.si_omegas[hnet_name][task_id])
+
+                loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
+
+                loss_reg.backward()
+
+                if grad_tloss is not None:  # Debug
+                    grad_full = torch.cat([d.grad.view(-1) for d in self.hnet_map[hnet_name].theta])
+                    # Grad of regularizer.
+                    grad_diff = grad_full - grad_tloss
+                    grad_diff_norm = torch.norm(grad_diff, 2)
+
+                    # Cosine between regularizer gradient and task-specific
+                    # gradient.
+                    if dTheta is None:
+                        dTheta = opstep.calc_delta_theta(
+                            self.theta_optims[hnet_name][task_id],
+                            self.hparams.use_sgd_change,
+                            lr=self.hparams.lr_hyper,
+                            detach_dt=not self.hparams.backprop_dt
+                        )
+                    dT_vec = torch.cat([d.view(-1).clone() for d in dTheta])
+                    grad_cos = torch.nn.functional.cosine_similarity(grad_diff.view(1, -1),
+                                                                     dT_vec.view(1, -1))
+
+            torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
+            self.theta_optims[hnet_name][task_id].step()

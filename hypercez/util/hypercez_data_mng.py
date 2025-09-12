@@ -44,3 +44,48 @@ class HyperCEZDataManager:
         self.hyper_crl_collector.add(x_t, u_t, reward, x_tt, task_id)
 
         self.ez_agent.mem_id = task_id
+
+    def make_batch(self, task_id):
+        if not hasattr(self.ez_agent, "mem_id"):
+            # Save current memory
+            self.ez_agent.mem_id = task_id
+            self.collector_map[self.ez_agent.mem_id] = self.ez_agent.collector
+            self.traj_pool_map[self.ez_agent.mem_id] = self.ez_agent.traj_pool
+            self.replay_buffer_map[self.ez_agent.mem_id] = self.ez_agent.replay_buffer
+            self.batch_storage_map[self.ez_agent.mem_id] = self.ez_agent.batch_storage
+            self.prev_traj_map[self.ez_agent.mem_id] = self.ez_agent.prev_traj
+
+            self.ez_agent.make_batch()
+            return self.ez_agent.batch_storage.pop()
+        elif self.ez_agent.mem_id != task_id:
+            # Save current memory
+            self.collector_map[self.ez_agent.mem_id] = self.ez_agent.collector
+            self.traj_pool_map[self.ez_agent.mem_id] = self.ez_agent.traj_pool
+            self.replay_buffer_map[self.ez_agent.mem_id] = self.ez_agent.replay_buffer
+            self.batch_storage_map[self.ez_agent.mem_id] = self.ez_agent.batch_storage
+            self.prev_traj_map[self.ez_agent.mem_id] = self.ez_agent.prev_traj
+
+            if task_id in self.replay_buffer_map:
+                # recover the memory of the agent on this task
+                self.ez_agent.collector = self.collector_map[task_id]
+                self.ez_agent.traj_pool = self.traj_pool_map[task_id]
+                self.ez_agent.replay_buffer = self.replay_buffer_map[task_id]
+                self.ez_agent.batch_storage = self.batch_storage_map[task_id]
+                self.ez_agent.prev_traj = self.prev_traj_map[task_id]
+            else:
+                raise Exception("No memory found for task id {}".format(task_id))
+
+            self.ez_agent.make_batch()
+            batch = self.ez_agent.batch_storage.pop()
+
+            # recover agent memory
+            self.ez_agent.collector = self.collector_map[self.ez_agent.mem_id]
+            self.ez_agent.traj_pool = self.traj_pool_map[self.ez_agent.mem_id]
+            self.ez_agent.replay_buffer = self.replay_buffer_map[self.ez_agent.mem_id]
+            self.ez_agent.batch_storage = self.batch_storage_map[self.ez_agent.mem_id]
+            self.ez_agent.prev_traj = self.prev_traj_map[self.ez_agent.mem_id]
+            return batch
+        else:
+            self.ez_agent.make_batch()
+            return self.ez_agent.batch_storage.pop()
+

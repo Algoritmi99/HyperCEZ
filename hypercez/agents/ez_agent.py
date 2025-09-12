@@ -1350,20 +1350,26 @@ class EZAgent(Agent):
         if self.trained_steps % self.hparams.train["reanalyze_update_interval"] == 0:
             self.reanalyze_model = copy.deepcopy(self.model)
 
-        scalers, log_data = self.update_weights(
+        weighted_loss, log_data = self.calc_loss(
             self.model,
             batch,
-            self.optimizer,
             self.replay_buffer,
-            self.scaler,
             self.trained_steps,
-            target_model=copy.deepcopy(self.reanalyze_model),
+            target_model=copy.deepcopy(self.reanalyze_model)
+        )
+
+        scalers = self.update_weights(
+            weighted_loss,
+            self.model,
+            self.optimizer,
+            self.scaler,
+            target_model=copy.deepcopy(self.reanalyze_model)
         )
 
         self.scaler = scalers[0]
         self.trained_steps += 1
 
-    def update_weights(self, model, batch, optimizer, replay_buffer, scaler, step_count, target_model=None):
+    def calc_loss(self, model, batch, replay_buffer, step_count, target_model=None, extra_loss=None, extra_loss_weight=None, model_state=None):
         target_model.eval()
         # init
         batch_size = self.hparams.train["batch_size"]
@@ -1372,7 +1378,6 @@ class EZAgent(Agent):
         ) else self.obs_shape
         unroll_steps = self.hparams.train["unroll_steps"]
         n_stack = self.hparams.model["n_stack"]
-        gradient_scale = 1. / unroll_steps
         reward_hidden = self.init_reward_hidden(batch_size)
         loss_data = {}
         other_scalar = {}
@@ -1434,7 +1439,7 @@ class EZAgent(Agent):
                                                                          **self.hparams.model["reward_support"])
 
         with torch.amp.autocast(self.device.type):
-            states, values, policies = model.initial_inference(obs_batch, training=True)
+            states, values, policies = model.initial_inference(obs_batch, training=True, model_state=model_state)
 
         if self.hparams.model["value_support"]["type"] == 'symlog':
             scaled_value = symexp(values).min(0)[0]
@@ -1499,17 +1504,18 @@ class EZAgent(Agent):
                                                                                                     action_batch[:,
                                                                                                     step_i],
                                                                                                     reward_hidden,
-                                                                                                    training=True)
+                                                                                                    training=True,
+                                                                                                    model_state=model_state)
 
                 beg_index = image_channel * step_i
                 end_index = image_channel * (step_i + n_stack)
 
                 # consistency loss
-                gt_next_states = model.do_representation(obs_target_batch[:, beg_index:end_index])
+                gt_next_states = model.do_representation(obs_target_batch[:, beg_index:end_index], model_state=model_state)
 
                 # projection for consistency
-                dynamic_states_proj = model.do_projection(states, with_grad=True)
-                gt_states_proj = model.do_projection(gt_next_states, with_grad=False)
+                dynamic_states_proj = model.do_projection(states, with_grad=True, model_state=model_state)
+                gt_states_proj = model.do_projection(gt_next_states, with_grad=False, model_state=model_state)
                 consistency_loss += cosine_similarity_loss(dynamic_states_proj, gt_states_proj) * mask
 
                 # reward, value, policy loss
@@ -1549,9 +1555,18 @@ class EZAgent(Agent):
         if is_continuous:
             loss += policy_entropy_loss * self.hparams.train["entropy_coeff"]
 
-        weighted_loss = (weights * loss).mean()
+        weighted_loss = (
+                            (1 - (extra_loss_weight if extra_loss_weight is not None else 0)) * (weights * loss).mean()
+                        ) +  (
+                (extra_loss_weight if extra_loss_weight is not None else 1) * (extra_loss if extra_loss is not None else 0)
+        )
 
+        return weighted_loss, (loss_data, other_scalar, other_distribution)
+
+    def update_weights(self, weighted_loss, model, optimizer, scaler, target_model=None):
         # backward
+        unroll_steps = self.hparams.train["unroll_steps"]
+        gradient_scale = 1. / unroll_steps
         parameters = model.parameters()
         with torch.amp.autocast(self.device.type):
             weighted_loss.register_hook(lambda grad: grad * gradient_scale)
@@ -1567,7 +1582,7 @@ class EZAgent(Agent):
             target_model.value_policy_model.reset_noise()
 
         scalers = [scaler]
-        return scalers, (loss_data, other_scalar, other_distribution)
+        return scalers
 
     def init_reward_hidden(self, batch_size):
         if self.hparams.model["value_prefix"]:

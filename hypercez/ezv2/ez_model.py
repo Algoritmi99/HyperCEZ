@@ -8,6 +8,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.func import functional_call
 
 from hypercez.util.format import DiscreteSupport, symexp, normalize_state
 
@@ -55,47 +56,63 @@ class EfficientZero(nn.Module):
         self.value_prefix = kwargs.get('value_prefix')
         self.v_num = hparams.train["v_num"]
 
-    def do_representation(self, obs):
-        state = self.representation_model(obs)
+    def do_representation(self, obs, model_state=None):
+        state = self.representation_model(obs) if model_state is None or 'representation_model' not in model_state else functional_call(
+            self.representation_model, model_state["representation_model"], args=(obs,), kwargs=None
+        )
         if self.state_norm:
             state = normalize_state(state)
 
         return state
 
-    def do_dynamics(self, state, action):
-        next_state = self.dynamics_model(state, action)
+    def do_dynamics(self, state, action, model_state=None):
+        next_state = self.dynamics_model(state, action) if model_state is None or 'dynamics_model' not in model_state else functional_call(
+            self.dynamics_model, model_state["dynamics_model"], args=(state, action), kwargs=None
+        )
         if self.state_norm:
             next_state = normalize_state(next_state)
 
         return next_state
 
-    def do_reward_prediction(self, next_state, reward_hidden=None):
+    def do_reward_prediction(self, next_state, reward_hidden=None, model_state=None):
         # use the predicted state (Namely, current state + action) for reward prediction
         if self.value_prefix:
-            value_prefix, reward_hidden = self.reward_prediction_model(next_state, reward_hidden)
+            value_prefix, reward_hidden = self.reward_prediction_model(
+                next_state, reward_hidden
+            ) if model_state is None or 'reward_prediction_model' not in model_state else functional_call(
+                self.reward_prediction_model, model_state["reward_prediction_model"], args=(next_state, reward_hidden), kwargs=None
+            )
             return value_prefix, reward_hidden
         else:
-            reward = self.reward_prediction_model(next_state)
+            reward = self.reward_prediction_model(next_state) if model_state is None or 'reward_prediction_model' not in model_state else functional_call(
+                self.reward_prediction_model, model_state["reward_prediction_model"], args=(next_state,), kwargs=None
+            )
             return reward, None
 
-    def do_value_policy_prediction(self, state):
-        value, policy = self.value_policy_model(state)
+    def do_value_policy_prediction(self, state, model_state=None):
+        value, policy = self.value_policy_model(state) if model_state is None or 'value_policy_model' not in model_state else functional_call(
+            self.value_policy_model, model_state["value_policy_model"], args=(state,), kwargs=None
+        )
         return value, policy
 
-    def do_projection(self, state, with_grad=True):
+    def do_projection(self, state, with_grad=True, model_state=None):
         # only the branch of proj + pred can share the gradients
-        proj = self.projection_model(state)
+        proj = self.projection_model(state) if model_state is None or 'projection_model' not in model_state else functional_call(
+            self.projection_model, model_state['projection_model'], args=(state,), kwargs=None
+        )
 
         # with grad, use proj_head
         if with_grad:
-            proj = self.projection_head_model(proj)
+            proj = self.projection_head_model(proj) if self.model_state is None or 'projection_head_model' not in model_state else functional_call(
+                self.projection_head_model, model_state['projection_head_model'], args=(proj,), kwargs=None
+            )
             return proj
         else:
             return proj.detach()
 
-    def initial_inference(self, obs, training=False):
-        state = self.do_representation(obs)
-        values, policy = self.do_value_policy_prediction(state)
+    def initial_inference(self, obs, training=False, model_state=None):
+        state = self.do_representation(obs, model_state=model_state)
+        values, policy = self.do_value_policy_prediction(state, model_state=model_state)
 
         if training:
             return state, values, policy
@@ -112,10 +129,10 @@ class EfficientZero(nn.Module):
 
         return state, output_values, policy
 
-    def recurrent_inference(self, state, action, reward_hidden, training=False):
-        next_state = self.do_dynamics(state, action)
-        value_prefix, reward_hidden = self.do_reward_prediction(next_state, reward_hidden)
-        values, policy = self.do_value_policy_prediction(next_state)
+    def recurrent_inference(self, state, action, reward_hidden, training=False, model_state=None):
+        next_state = self.do_dynamics(state, action, model_state=model_state)
+        value_prefix, reward_hidden = self.do_reward_prediction(next_state, reward_hidden, model_state=model_state)
+        values, policy = self.do_value_policy_prediction(next_state, model_state=model_state)
         if training:
             return next_state, value_prefix, values, policy, reward_hidden
 

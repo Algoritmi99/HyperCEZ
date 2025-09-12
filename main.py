@@ -16,18 +16,24 @@ def main():
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
-    print(hparams.normalize_xu)
-    print(hparams.env)
-    print(hparams.dnn_out)
-    print(hparams.ewc_weight_importance)
+    # print(hparams.normalize_xu)
+    # print(hparams.env)
+    # print(hparams.dnn_out)
+    # print(hparams.ewc_weight_importance)
+    # print(hparams.plastic_prev_tembs)
+    # print(hparams.lr_hyper)
+    print(hparams.beta)
     print(hparams.plastic_prev_tembs)
-    print(hparams.lr_hyper)
+    raise NotImplementedError
 
     ez_agent = EZAgent(
         hparams,
         AgentType.DMC_STATE
     )
     ez_agent.init_model()
+
+    print([i for i in (ez_agent.model.dynamics_model.named_parameters())])
+    print(len([i for i in ez_agent.model.dynamics_model.parameters()]))
 
     hyper_cez_agent = HyperCEZAgent(
         hparams,
