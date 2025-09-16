@@ -16,13 +16,6 @@ def main():
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
-    # print(hparams.normalize_xu)
-    # print(hparams.env)
-    # print(hparams.dnn_out)
-    # print(hparams.ewc_weight_importance)
-    # print(hparams.plastic_prev_tembs)
-    # print(hparams.lr_hyper)
-
     ez_agent = EZAgent(
         hparams,
         AgentType.DMC_STATE
