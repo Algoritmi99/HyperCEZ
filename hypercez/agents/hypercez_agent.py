@@ -96,19 +96,6 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
 
-
-    def generate_main_weights(self, task_id):
-        assert self.hnet_map is not None
-        for hnet_name in self.hnet_component_names:
-            new_weights = self.hnet_map[hnet_name](task_id)
-            with torch.no_grad():
-                for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
-                    assert p.shape == w.shape
-                    p.copy_(w)
-            for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
-                assert torch.equal(p, w)
-        return True
-
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert self.hnet_map is not None
         for hnet_name in self.hnet_component_names:
