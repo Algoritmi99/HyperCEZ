@@ -212,7 +212,7 @@ class HyperCEZAgent(Agent):
         loss_task = self.ez_agent.calc_loss(
             self.ez_agent.model,
             batch,
-            copy.deepcopy(self.__memory_manager.replay_buffer_map[task_id]),
+            copy.deepcopy(self.__memory_manager.get_item('replay_buffer_map', task_id)),
             self.ez_agent.trained_steps,
             target_model=copy.deepcopy(self.ez_agent.reanalyze_model),
             model_state=full_state

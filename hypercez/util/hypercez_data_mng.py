@@ -89,3 +89,15 @@ class HyperCEZDataManager:
             self.ez_agent.make_batch()
             return self.ez_agent.batch_storage.pop()
 
+    def get_item(self, item_name, task_id):
+        if not hasattr(self.ez_agent, "mem_id"):
+            self.ez_agent.mem_id = task_id
+
+        self.collector_map[self.ez_agent.mem_id] = self.ez_agent.collector
+        self.traj_pool_map[self.ez_agent.mem_id] = self.ez_agent.traj_pool
+        self.replay_buffer_map[self.ez_agent.mem_id] = self.ez_agent.replay_buffer
+        self.batch_storage_map[self.ez_agent.mem_id] = self.ez_agent.batch_storage
+        self.prev_traj_map[self.ez_agent.mem_id] = self.ez_agent.prev_traj
+
+        return self.__getattribute__(item_name)[task_id]
+
