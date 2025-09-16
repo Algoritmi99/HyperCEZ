@@ -308,3 +308,6 @@ class HyperCEZAgent(Agent):
 
             torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
             self.theta_optims[hnet_name][task_id].step()
+
+    def reset(self, obs):
+        self.ez_agent.reset(obs)
