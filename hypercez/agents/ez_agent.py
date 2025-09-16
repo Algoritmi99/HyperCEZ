@@ -611,7 +611,6 @@ class EZAgent(Agent):
             self.collector.init(list(self.stacked_obs))
 
         if done:
-            print('throgh')
             if self.prev_traj is not None:
                 self.save_previous_trajectory(self.prev_traj, self.collector)
 
