@@ -1355,7 +1355,6 @@ class EZAgent(Agent):
             batch,
             self.replay_buffer,
             self.trained_steps,
-            target_model=copy.deepcopy(self.reanalyze_model)
         )
 
         scalers = self.update_weights(
@@ -1369,8 +1368,7 @@ class EZAgent(Agent):
         self.scaler = scalers[0]
         self.trained_steps += 1
 
-    def calc_loss(self, model, batch, replay_buffer, step_count, target_model=None, extra_loss=None, extra_loss_weight=None, model_state=None):
-        target_model.eval()
+    def calc_loss(self, model, batch, replay_buffer, step_count, extra_loss=None, extra_loss_weight=None, model_state=None):
         # init
         batch_size = self.hparams.train["batch_size"]
         image_channel = self.obs_shape[0] if (
@@ -1564,6 +1562,7 @@ class EZAgent(Agent):
         return weighted_loss, (loss_data, other_scalar, other_distribution)
 
     def update_weights(self, weighted_loss, model, optimizer, scaler, target_model=None):
+        target_model.eval()
         # backward
         unroll_steps = self.hparams.train["unroll_steps"]
         gradient_scale = 1. / unroll_steps

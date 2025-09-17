@@ -69,6 +69,7 @@ class HyperCEZAgent(Agent):
         self.__memory_manager = HyperCEZDataManager(self.ez_agent)
         self.__training_mode = False
         self.__dtype = None
+        self.learn_called = 0
 
     def init_model(self):
         if self.ez_agent is None:
@@ -93,6 +94,7 @@ class HyperCEZAgent(Agent):
 
     def to(self, device=torch.device("cpu")):
         super().to(device)
+        self.ez_agent.to(device)
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
 
@@ -104,6 +106,7 @@ class HyperCEZAgent(Agent):
                 for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                     assert p.shape == w.shape
                     w = w.to(device=p.device, dtype=p.dtype, non_blocking=True)
+                    w.requires_grad_(p.requires_grad)
                     p.copy_(w)
                     if self.__dtype is None:
                         self.__dtype = torch.float32
@@ -174,6 +177,7 @@ class HyperCEZAgent(Agent):
         [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
         self.ez_agent.train(total_train_steps)
 
+        self.learn_called = 0
         self.__training_mode = True
 
     def learn(self, task_id):
@@ -204,29 +208,29 @@ class HyperCEZAgent(Agent):
                     [param_name for param_name, _ in self.ez_agent.model.__getattr__(hnet_name).named_parameters()]
             ):
                 model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
-                if self.__dtype is not None:
-                    model_state[param_name] = torch.tensor(model_state[param_name], dtype=self.__dtype)
             full_state[hnet_name] = model_state
 
         # calculate loss
-        loss_task = self.ez_agent.calc_loss(
+        loss_task, _ = self.ez_agent.calc_loss(
             self.ez_agent.model,
             batch,
             copy.deepcopy(self.__memory_manager.get_item('replay_buffer_map', task_id)),
             self.ez_agent.trained_steps,
-            target_model=copy.deepcopy(self.ez_agent.reanalyze_model),
             model_state=full_state
         )
         with torch.amp.autocast(self.device.type):
             loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
 
-        self.ez_agent.scaler.scale(loss_task).backward()
+        self.ez_agent.scaler.scale(loss_task).backward(
+            retain_graph=calc_reg,
+            create_graph=self.hparams.backprop_dt and calc_reg
+        )
 
-        loss_task.backward(retain_graph=calc_reg,
-                           create_graph=self.hparams.backprop_dt and calc_reg)
+        # loss_task.backward(retain_graph=calc_reg,
+        #                    create_graph=self.hparams.backprop_dt and calc_reg)
 
         for hnet_name in self.hnet_component_names:
-            weights = [v for _, v in full_state[hnet_name]]
+            weights = [v for _, v in full_state[hnet_name].items()]
             # clip grads
             torch.nn.utils.clip_grad_norm_(self.hnet_map[hnet_name].get_task_emb(task_id), self.hparams.grad_max_norm)
 
@@ -244,7 +248,7 @@ class HyperCEZAgent(Agent):
             # Update Regularization
             grad_tloss = None
             if calc_reg:
-                if i % 1000 == 0:  # Just for debugging: displaying grad magnitude.
+                if self.learn_called % 1000 == 0:  # Just for debugging: displaying grad magnitude.
                     grad_tloss = torch.cat([d.grad.clone().view(-1) for d in
                                             self.hnet_map[hnet_name].theta])
                 if self.hparams.no_look_ahead:
@@ -295,6 +299,7 @@ class HyperCEZAgent(Agent):
 
             torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
             self.theta_optims[hnet_name][task_id].step()
+            self.learn_called += 1
 
     def reset(self, obs):
         self.ez_agent.reset(obs)

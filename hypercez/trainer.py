@@ -1,3 +1,5 @@
+import time
+
 import torch
 from tqdm import tqdm
 
@@ -22,14 +24,14 @@ class Trainer:
         self.agent.train(dynamic_iters // self.hparams.dynamics_update_every)
         for task_id in range(self.hparams.num_tasks):
             print("Running task {}".format(task_id))
+            time.sleep(1)
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
             x_t, _ = env.reset()
             self.agent.reset(x_t)
             print("Doing initial random steps...")
-            # for _ in tqdm(range(self.hparams.init_rand_steps)):
-
-            for _ in tqdm(range(1200)):
+            time.sleep(1)
+            for _ in tqdm(range(self.hparams.init_rand_steps)):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
@@ -46,6 +48,7 @@ class Trainer:
             x_t, _ = env.reset()
             self.agent.reset(x_t)
             print("Doing training steps...")
+            time.sleep(1)
             for it in tqdm(range(dynamic_iters)):
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
