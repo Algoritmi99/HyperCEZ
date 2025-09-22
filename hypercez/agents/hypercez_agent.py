@@ -130,6 +130,10 @@ class HyperCEZAgent(Agent):
         self.fisher_ests = {hnet_name: {} for hnet_name in self.hnet_component_names}
         self.si_omegas = {hnet_name: {} for hnet_name in self.hnet_component_names}
 
+        # put hnets and ez_agent to training mode
+        [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
+        self.ez_agent.train(total_train_steps)
+
         for hnet_name in self.hnet_component_names:
             for task_id in range(self.hparams.num_tasks):
                 self.reg_targets[hnet_name][task_id] = hreg.get_current_targets(task_id, self.hnet_map[hnet_name])
@@ -172,10 +176,6 @@ class HyperCEZAgent(Agent):
                     [self.hnet_map[hnet_name].get_task_emb(task_id)],
                     lr=self.hparams.lr_hyper
                 )
-
-        # put hnets and ez_agent to training mode
-        [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
-        self.ez_agent.train(total_train_steps)
 
         self.learn_called = 0
         self.__training_mode = True
@@ -223,7 +223,7 @@ class HyperCEZAgent(Agent):
 
         self.ez_agent.scaler.scale(loss_task).backward(
             retain_graph=calc_reg,
-            create_graph=self.hparams.backprop_dt and calc_reg
+            create_graph=self.hparams.backprop_dt and calc_reg,
         )
 
         # loss_task.backward(retain_graph=calc_reg,
@@ -247,6 +247,7 @@ class HyperCEZAgent(Agent):
 
             # Update Regularization
             grad_tloss = None
+
             if calc_reg:
                 if self.learn_called % 1000 == 0:  # Just for debugging: displaying grad magnitude.
                     grad_tloss = torch.cat([d.grad.clone().view(-1) for d in

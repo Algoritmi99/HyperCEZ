@@ -57,9 +57,6 @@ class EfficientZero(nn.Module):
         self.v_num = hparams.train["v_num"]
 
     def do_representation(self, obs, model_state=None):
-        if self.training and model_state is not None:
-            obs = obs.clone().detach().requires_grad_(True)
-
         state = self.representation_model(obs) if model_state is None or 'representation_model' not in model_state else functional_call(
             self.representation_model, model_state["representation_model"], args=(obs,), kwargs=None
         )
@@ -69,10 +66,6 @@ class EfficientZero(nn.Module):
         return state
 
     def do_dynamics(self, state, action, model_state=None):
-        if self.training and model_state is not None:
-            state = state.clone().detach().requires_grad_(True)
-            action = action.clone().detach().requires_grad_(True)
-
         next_state = self.dynamics_model(state, action) if model_state is None or 'dynamics_model' not in model_state else functional_call(
             self.dynamics_model, model_state["dynamics_model"], args=(state, action), kwargs=None
         )
@@ -82,9 +75,6 @@ class EfficientZero(nn.Module):
         return next_state
 
     def do_reward_prediction(self, next_state, reward_hidden=None, model_state=None):
-        if self.training and model_state is not None:
-            next_state = next_state.clone().detach().requires_grad_(True)
-
         # use the predicted state (Namely, current state + action) for reward prediction
         if self.value_prefix:
             value_prefix, reward_hidden = self.reward_prediction_model(
@@ -100,18 +90,12 @@ class EfficientZero(nn.Module):
             return reward, None
 
     def do_value_policy_prediction(self, state, model_state=None):
-        if self.training and model_state is not None:
-            state = state.clone().detach().requires_grad_(True)
-
         value, policy = self.value_policy_model(state) if model_state is None or 'value_policy_model' not in model_state else functional_call(
             self.value_policy_model, model_state["value_policy_model"], args=(state,), kwargs=None
         )
         return value, policy
 
     def do_projection(self, state, with_grad=True, model_state=None):
-        if self.training and model_state is not None:
-            state = state.clone().detach().requires_grad_(True)
-
         # only the branch of proj + pred can share the gradients
         proj = self.projection_model(state) if model_state is None or 'projection_model' not in model_state else functional_call(
             self.projection_model, model_state['projection_model'], args=(state,), kwargs=None
