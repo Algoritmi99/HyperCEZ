@@ -359,7 +359,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
             assert(len(dTheta) == len(self.theta_shapes))
 
             weights = []
-            for i, t in enumerate(theta):
+            for i, t in enumerate(theta):#mahshidlovesarash
                 weights.append(t + dTheta[i])
         else:
             weights = theta

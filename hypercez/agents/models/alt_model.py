@@ -242,7 +242,6 @@ class DynamicsNetwork(nn.Module):
         self.dyn_ln_1 = nn.LayerNorm(hidden_shape + act_embed_shape)
         self.dyn_net_1 = nn.Linear(hidden_shape + act_embed_shape, dyn_shape)
 
-        self.dyn_ln_2 = nn.LayerNorm(dyn_shape)
         self.dyn_net_2 = nn.Linear(dyn_shape, hidden_shape)
 
         if num_blocks > 0:
