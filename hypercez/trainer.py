@@ -31,7 +31,7 @@ class Trainer:
             self.agent.reset(x_t)
             print("Doing initial random steps...")
             time.sleep(1)
-            for _ in tqdm(range(self.hparams.init_rand_steps)):
+            for _ in tqdm(range(100000)):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
