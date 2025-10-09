@@ -70,3 +70,4 @@ class Trainer:
         if self.plotter is not None:
             self.plotter.plot()
             self.plotter.plot_taskwise()
+            self.plotter.save_raw_data()

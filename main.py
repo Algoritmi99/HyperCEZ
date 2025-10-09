@@ -45,7 +45,7 @@ def main():
     plotter = Plotter()
 
     trainer = Trainer(
-        hyper_cez_agent,
+        ez_agent,
         hparams,
         cl_env_loader,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
