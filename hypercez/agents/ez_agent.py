@@ -75,8 +75,6 @@ class DecisionModel(IntEnum):
     LATEST = 2
     CURRENT = 3
 
-# todo: update code to read n_stack from config everywhere
-
 class EZAgent(Agent):
     def __init__(self, hparams, agent_type: AgentType, env_action_space=None):
         super(EZAgent, self).__init__(hparams)
