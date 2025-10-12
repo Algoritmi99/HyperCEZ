@@ -53,6 +53,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(hparams.train["training_steps"])
+    trainer.agent.save('agents/hypercez1.agent')
 
 
 if __name__ == "__main__":
