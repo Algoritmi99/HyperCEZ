@@ -435,6 +435,14 @@ class EZAgent(Agent):
             return self.model
         return self.model.__getattr__(model_name)
 
+    def is_ready_for_training(self, task_id=None):
+        if self.replay_buffer is None:
+            return False
+        return self.replay_buffer.get_transition_num() >= self.hparams.train['start_transitions']
+
+    def done_training(self, task_id=None):
+        return self.trained_steps >= self.total_train_steps
+
     def act(self, obs, task_id=None, act_type: ActType = ActType.TRAIN, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
         if decision_model == DecisionModel.SELF_PLAY:
             model = self.self_play_model
@@ -500,7 +508,7 @@ class EZAgent(Agent):
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         return self.act(obs, task_id, act_type)
 
-    def train(self, total_train_steps):
+    def train(self):
         if self.hparams.optimizer["type"] == 'SGD':
             self.optimizer = optim.SGD(self.model.parameters(),
                                   lr=self.hparams.optimizer["lr"],
@@ -566,7 +574,7 @@ class EZAgent(Agent):
 
         self.prev_traj = None
 
-        self.total_train_steps = total_train_steps
+        self.total_train_steps = self.hparams.train['training_steps'] + self.hparams.train['offline_training_steps']
         self.beta_schedule = LinearSchedule(
             self.total_train_steps,
             initial_p=self.hparams.priority["priority_prob_beta"],

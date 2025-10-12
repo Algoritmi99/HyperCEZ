@@ -98,6 +98,12 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
 
+    def is_ready_for_training(self, task_id=None):
+        return self.__memory_manager.is_ready_for_training(task_id)
+
+    def done_training(self, task_id=None):
+        self.__memory_manager.done_training(task_id)
+
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert self.hnet_map is not None
         for hnet_name in self.hnet_component_names:
@@ -121,7 +127,7 @@ class HyperCEZAgent(Agent):
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
         self.__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
 
-    def train(self, total_train_steps):
+    def train(self):
         # structure of keys: hnet_name -> task_id -> object
         self.reg_targets = {hnet_name: {} for hnet_name in self.hnet_component_names}
         self.theta_optims = {hnet_name: {} for hnet_name in self.hnet_component_names}
@@ -132,7 +138,7 @@ class HyperCEZAgent(Agent):
 
         # put hnets and ez_agent to training mode
         [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
-        self.ez_agent.train(total_train_steps)
+        self.ez_agent.train()
 
         for hnet_name in self.hnet_component_names:
             for task_id in range(self.hparams.num_tasks):
@@ -301,6 +307,9 @@ class HyperCEZAgent(Agent):
             torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
             self.theta_optims[hnet_name][task_id].step()
             self.learn_called += 1
+            self.__memory_manager.increment_trained_steps(task_id)
 
     def reset(self, obs):
         self.ez_agent.reset(obs)
+
+

@@ -10,6 +10,7 @@ class HyperCEZDataManager:
         self.replay_buffer_map = {}
         self.batch_storage_map = {}
         self.prev_traj_map = {}
+        self.trained_steps_map = {}
         self.hyper_crl_collector = DataCollector(ez_agent.hparams)
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
@@ -101,3 +102,25 @@ class HyperCEZDataManager:
 
         return self.__getattribute__(item_name)[task_id]
 
+    def is_ready_for_training(self, task_id):
+        if (
+                (not hasattr(self.ez_agent, "mem_id"))
+                or
+                (hasattr(self.ez_agent, "mem_id") and self.ez_agent.mem_id == task_id)
+        ):
+            return self.ez_agent.is_ready_for_training()
+
+        return self.replay_buffer_map[task_id].get_transition_num() >= self.ez_agent.hparams.train['start_transitions']
+
+    def done_training(self, task_id=None):
+        if task_id not in self.trained_steps_map:
+            self.trained_steps_map[task_id] = 0
+
+        self.ez_agent.trained_steps = self.trained_steps_map[task_id]
+        return self.ez_agent.done_training()
+
+    def increment_trained_steps(self, task_id=None):
+        if task_id not in self.trained_steps_map:
+            self.trained_steps_map[task_id] = 0
+
+        self.trained_steps_map[task_id] += 1

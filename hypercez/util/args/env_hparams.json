@@ -149,7 +149,7 @@
     "num_tasks": 3,
     "max_iteration": 100000,
     "init_rand_steps": 10000,
-    "dynamics_update_every": 1000,
+    "dynamics_update_every": 10,
     "dnn_out": "diff",
     "normalize_xu": true,
     "h_dims": [
