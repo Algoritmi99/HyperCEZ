@@ -29,10 +29,10 @@ class Agent:
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         raise NotImplementedError
 
-    def is_ready_for_training(self, task_id=None):
+    def is_ready_for_training(self, task_id=None, pbar=None):
         return self.model is not None
 
-    def done_training(self, task_id=None):
+    def done_training(self, task_id=None, pbar=None):
         return False
 
     def init_model(self):

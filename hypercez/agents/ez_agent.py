@@ -435,12 +435,20 @@ class EZAgent(Agent):
             return self.model
         return self.model.__getattr__(model_name)
 
-    def is_ready_for_training(self, task_id=None):
+    def is_ready_for_training(self, task_id=None, pbar=None):
+        if pbar is not None:
+            pbar.total = self.hparams.train['start_transitions']
+            pbar.n = self.replay_buffer.get_transition_num()
+            pbar.refresh()
         if self.replay_buffer is None:
             return False
         return self.replay_buffer.get_transition_num() >= self.hparams.train['start_transitions']
 
-    def done_training(self, task_id=None):
+    def done_training(self, task_id=None, pbar=None):
+        if pbar is not None:
+            pbar.total = self.total_train_steps
+            pbar.n = self.trained_steps
+            pbar.refresh()
         return self.trained_steps >= self.total_train_steps
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.TRAIN, decision_model: DecisionModel = DecisionModel.SELF_PLAY):

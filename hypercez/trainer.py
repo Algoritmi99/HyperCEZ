@@ -31,7 +31,8 @@ class Trainer:
             self.agent.reset(x_t)
             print("Doing initial random steps...")
             time.sleep(1)
-            while not self.agent.is_ready_for_training():
+            pbar = tqdm()
+            while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
                 self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
@@ -44,13 +45,15 @@ class Trainer:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
+            pbar.close()
             # trial and error
             x_t, _ = env.reset()
             self.agent.reset(x_t)
             print("Doing training steps...")
             time.sleep(1)
             it = 0
-            while not self.agent.done_training(task_id):
+            pbar = tqdm()
+            while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
@@ -69,6 +72,7 @@ class Trainer:
                     self.agent.reset(x_t)
 
                 it += 1
+            pbar.close()
 
         if self.plotter is not None:
             self.plotter.plot()

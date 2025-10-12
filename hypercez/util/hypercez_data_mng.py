@@ -102,22 +102,27 @@ class HyperCEZDataManager:
 
         return self.__getattribute__(item_name)[task_id]
 
-    def is_ready_for_training(self, task_id):
+    def is_ready_for_training(self, task_id, pbar=None):
         if (
                 (not hasattr(self.ez_agent, "mem_id"))
                 or
                 (hasattr(self.ez_agent, "mem_id") and self.ez_agent.mem_id == task_id)
         ):
-            return self.ez_agent.is_ready_for_training()
+            return self.ez_agent.is_ready_for_training(pbar=pbar)
+
+        if pbar is not None:
+            pbar.total = self.ez_agent.hparams.train['start_transitions']
+            pbar.n = self.replay_buffer_map[task_id].get_transition_num()
+            pbar.refresh()
 
         return self.replay_buffer_map[task_id].get_transition_num() >= self.ez_agent.hparams.train['start_transitions']
 
-    def done_training(self, task_id=None):
+    def done_training(self, task_id=None, pbar=None):
         if task_id not in self.trained_steps_map:
             self.trained_steps_map[task_id] = 0
 
         self.ez_agent.trained_steps = self.trained_steps_map[task_id]
-        return self.ez_agent.done_training()
+        return self.ez_agent.done_training(pbar=pbar)
 
     def increment_trained_steps(self, task_id=None):
         if task_id not in self.trained_steps_map:
