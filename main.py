@@ -46,7 +46,7 @@ def main():
     plotter.enable_tensorboard(log_dir='runs/ez_agent1')
 
     trainer = Trainer(
-        ez_agent,
+        hyper_cez_agent,
         hparams,
         cl_env_loader,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
