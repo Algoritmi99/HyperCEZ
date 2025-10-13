@@ -98,11 +98,11 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
 
-    def is_ready_for_training(self, task_id=None):
-        return self.__memory_manager.is_ready_for_training(task_id)
+    def is_ready_for_training(self, task_id=None, pbar=None):
+        return self.__memory_manager.is_ready_for_training(task_id=task_id, pbar=pbar)
 
-    def done_training(self, task_id=None):
-        self.__memory_manager.done_training(task_id)
+    def done_training(self, task_id=None, pbar=None):
+        self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert self.hnet_map is not None
