@@ -43,7 +43,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/ez_agent1')
+    plotter.enable_tensorboard(log_dir='runs/hypercez_agent1_halfcheetah')
 
     trainer = Trainer(
         hyper_cez_agent,
