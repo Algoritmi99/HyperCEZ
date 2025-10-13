@@ -52,7 +52,7 @@ def main():
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         plotter=plotter,
     )
-    trainer.train(hparams.train["training_steps"])
+    trainer.train()
     trainer.agent.save('agents/hypercez1.agent')
 
 

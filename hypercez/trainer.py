@@ -19,7 +19,7 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
-    def train(self, dynamic_iters: int):
+    def train(self):
         print("Running Training sequence on", self.device)
         self.agent.train()
         for task_id in range(self.hparams.num_tasks):
