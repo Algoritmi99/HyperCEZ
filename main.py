@@ -11,7 +11,9 @@ from hypercez.util.plotter import Plotter
 
 
 def main():
-    hparams = Hparams("half_cheetah")
+    # env_name = "half_cheetah"
+    env_name = "pendulum"
+    hparams = Hparams(env_name)
 
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
@@ -43,7 +45,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_agent1_halfcheetah')
+    plotter.enable_tensorboard(log_dir='runs/hypercez_agent1' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -53,7 +55,7 @@ def main():
         plotter=plotter,
     )
     trainer.train()
-    trainer.agent.save('agents/hypercez1.agent')
+    trainer.agent.save('agents/hypercez1' + "_" + env_name + '.agent')
 
 
 if __name__ == "__main__":

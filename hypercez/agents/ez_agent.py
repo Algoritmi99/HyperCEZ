@@ -767,7 +767,7 @@ class EZAgent(Agent):
                 _actions += [np.random.randint(0, self.env_action_space.n) for _ in range(self.hparams.train["unroll_steps"] - len(_actions))]
             else:
                 _actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
-                _actions = np.array([a.squeeze() for a in _actions])
+                _actions = np.array([a.squeeze() for a in _actions]) if self.control_dim > 1 else np.array([a[0] for a in _actions])
                 _unroll_actions = traj.action_lst[state_index + 1:state_index + 1 + self.hparams.train["unroll_steps"]]
                 # _unroll_actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]]
                 _mask = [1. for _ in range(_unroll_actions.shape[0])]
