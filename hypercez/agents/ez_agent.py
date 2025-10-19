@@ -758,9 +758,9 @@ class EZAgent(Agent):
             traj = traj_lst[i]
             state_index = transition_pos_lst[i]
             sample_idx = indices_lst[i]
+            top_new_masks.append(int(sample_idx > collected_transitions - self.hparams.train["mixed_value_threshold"]))
 
             if self.agent_type == AgentType.ATARI:
-                top_new_masks.append(int(sample_idx > collected_transitions - self.hparams.train["mixed_value_threshold"]))
                 _actions = traj.action_lst[state_index:state_index + self.hparams.train["unroll_steps"]].tolist()
                 _mask = [1. for _ in range(len(_actions))]
                 _mask += [0. for _ in range(self.hparams.train["unroll_steps"] - len(_mask))]
@@ -1467,9 +1467,11 @@ class EZAgent(Agent):
         elif self.hparams.train["value_target"] == 'search':
             this_target_values = search_values
         elif self.hparams.train["value_target"] == 'mixed':
-            if step_count < self.hparams.train["start_use_mix_training_steps"]:
-                this_target_values = target_values
-            else:
+            # if step_count < self.hparams.train["start_use_mix_training_steps"]:
+            #     this_target_values = target_values
+            # else:
+                print(target_values.shape)
+                print(top_value_masks.shape)
                 this_target_values = target_values * top_value_masks.unsqueeze(1).repeat(1, unroll_steps + 1) \
                                      + search_values * (1 - top_value_masks).unsqueeze(1).repeat(1, unroll_steps + 1)
         elif self.hparams.train["value_target"] == 'max':
