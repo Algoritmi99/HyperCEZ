@@ -1467,11 +1467,9 @@ class EZAgent(Agent):
         elif self.hparams.train["value_target"] == 'search':
             this_target_values = search_values
         elif self.hparams.train["value_target"] == 'mixed':
-            # if step_count < self.hparams.train["start_use_mix_training_steps"]:
-            #     this_target_values = target_values
-            # else:
-                print(target_values.shape)
-                print(top_value_masks.shape)
+            if step_count < self.hparams.train["start_use_mix_training_steps"]:
+                this_target_values = target_values
+            else:
                 this_target_values = target_values * top_value_masks.unsqueeze(1).repeat(1, unroll_steps + 1) \
                                      + search_values * (1 - top_value_masks).unsqueeze(1).repeat(1, unroll_steps + 1)
         elif self.hparams.train["value_target"] == 'max':
