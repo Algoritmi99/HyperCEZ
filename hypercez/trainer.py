@@ -75,7 +75,7 @@ class Trainer:
 
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
-                    for _ in self.hparams.train["eval_n_episode"]:
+                    for _ in range(self.hparams.train["eval_n_episode"]):
                         evaluator.evaluate()
 
                 it += 1
