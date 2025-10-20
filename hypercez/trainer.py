@@ -6,6 +6,7 @@ from tqdm import tqdm
 from hypercez import Hparams
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.envs.cl_env import CLEnvLoader
+from hypercez.evaluator import Evaluator
 from hypercez.util.datautil import DataCollector
 
 
@@ -19,9 +20,10 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
-    def train(self):
+    def train(self, eval=False):
         print("Running Training sequence on", self.device)
         self.agent.train()
+        train_cnt = 0
         for task_id in range(self.hparams.num_tasks):
             print("Running task {}".format(task_id))
             time.sleep(1)
@@ -38,7 +40,7 @@ class Trainer:
                 self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
 
                 if self.plotter is not None:
-                    self.plotter.step(reward, terminated or truncated, task_id)
+                    self.plotter.step(reward, terminated or truncated, task_id, split='train')
 
                 x_t = x_tt
                 if terminated or truncated:
@@ -64,14 +66,20 @@ class Trainer:
                 self.agent.collect(x_t, u_t, reward, x_tt, task_id, done=terminated or truncated)
 
                 if self.plotter is not None:
-                    self.plotter.step(reward, terminated or truncated, task_id)
+                    self.plotter.step(reward, terminated or truncated, task_id, split='train')
 
                 x_t = x_tt
                 if truncated or terminated:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
+                if train_cnt % self.hparams.train["eval_interval"] == 0 and eval:
+                    evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
+                    for eval_cnt in self.hparams.train["eval_n_episode"]:
+                        evaluator.evaluate()
+
                 it += 1
+                train_cnt += 1
             pbar.close()
 
         if self.plotter is not None:
