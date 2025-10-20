@@ -24,7 +24,7 @@ class Evaluator:
                 x_t, _ = env.reset()
 
                 self.agent.reset(x_t)
-                pbar.set_description("Running evaluation on task {}".format(task_id))
+                pbar.set_postfix(task=task_id)
                 done = False
                 while not done:
                     _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
