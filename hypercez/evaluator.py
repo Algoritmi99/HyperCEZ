@@ -32,3 +32,5 @@ class Evaluator:
 
                 if self.plotter is not None:
                     self.plotter.step(reward, terminated or truncated, task_id, split='eval')
+
+                done = terminated or truncated
