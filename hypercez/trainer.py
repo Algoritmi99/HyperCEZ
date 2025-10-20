@@ -24,16 +24,14 @@ class Trainer:
         print("Running Training sequence on", self.device)
         self.agent.train()
         train_cnt = 0
+        pbar = tqdm()
         for task_id in range(self.hparams.num_tasks):
-            print("Running task {}".format(task_id))
-            time.sleep(1)
+            pbar.set_postfix(task=task_id)
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
             x_t, _ = env.reset()
             self.agent.reset(x_t)
-            print("Doing initial random steps...")
-            time.sleep(1)
-            pbar = tqdm(desc="Initializing")
+            pbar.set_description("Collecting data")
             while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
@@ -47,16 +45,14 @@ class Trainer:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
-            pbar.close()
             # trial and error
             x_t, _ = env.reset()
             self.agent.reset(x_t)
-            print("Doing training steps...")
-            time.sleep(1)
             it = 0
-            pbar = tqdm(desc="Training", position=0)
+            pbar.set_description("Training")
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 pbar.set_description("Training")
+                pbar.set_postfix(task=task_id)
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
@@ -75,8 +71,6 @@ class Trainer:
                     self.agent.reset(x_t)
 
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
-                    print("evaluating...")
-                    time.sleep(1)
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
 
