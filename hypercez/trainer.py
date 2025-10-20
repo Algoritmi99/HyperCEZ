@@ -56,6 +56,7 @@ class Trainer:
             it = 0
             pbar = tqdm(desc="Training", position=0)
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
+                pbar.set_description("Training")
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
