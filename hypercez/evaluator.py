@@ -13,15 +13,21 @@ class Evaluator:
         self.hparams = hparams
         self.plotter = plotter
 
-    def evaluate(self, steps, render=False):
-        outer_pbar = tqdm(total=steps, desc="Evaluating", position=1, leave=False)
+    def evaluate(self, steps, pbar=None, render=False):
+        if pbar is not None:
+            pbar.total = steps
+            pbar.n = 0
+            pbar.set_description("Evaluating", refresh=False)
+            pbar.refresh()
         for _ in range(steps):
             env_loader = CLEnvLoader(self.hparams.env)
             for i in range(self.hparams.num_tasks):
                 env_loader.add_task(i, render=render)
 
-            inner_pbar = tqdm(total=self.hparams.num_tasks, desc="Evaluating tasks", position=2, leave=False)
             for task_id in range(self.hparams.num_tasks):
+                if pbar is not None:
+                    pbar.set_postfix(task=task_id, refresh=False)
+                    pbar.refresh()
                 env = env_loader.get_env(task_id)
                 x_t, _ = env.reset()
 
@@ -39,9 +45,6 @@ class Evaluator:
                         self.plotter.step(reward, terminated or truncated, task_id, split='eval')
 
                     done = terminated or truncated
-                    inner_pbar.update(1)
-            inner_pbar.close()
-            outer_pbar.update(1)
-        outer_pbar.close()
-
-
+            if pbar is not None:
+                pbar.n += 1
+                pbar.refresh()

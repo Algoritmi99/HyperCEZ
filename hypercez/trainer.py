@@ -77,7 +77,7 @@ class Trainer:
                     print("evaluating...")
                     time.sleep(1)
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
-                    evaluator.evaluate(self.hparams.train["eval_n_episode"])
+                    evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
 
                 it += 1
                 train_cnt += 1
