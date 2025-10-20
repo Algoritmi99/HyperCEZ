@@ -74,7 +74,7 @@ class Trainer:
                     self.agent.reset(x_t)
 
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
-                    print("\nevaluating...")
+                    print("evaluating...")
                     time.sleep(1)
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"])
