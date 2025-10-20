@@ -13,8 +13,8 @@ class Evaluator:
         self.plotter = plotter
 
     def evaluate(self, steps, render=False):
-        pbar = tqdm(range(steps))
-        for _ in pbar:
+        pbar = tqdm(total=steps, desc="Evaluating", position=1)
+        for _ in range(steps):
             env_loader = CLEnvLoader(self.hparams.env)
             for i in range(self.hparams.num_tasks):
                 env_loader.add_task(i, render=render)
@@ -24,7 +24,7 @@ class Evaluator:
                 x_t, _ = env.reset()
 
                 self.agent.reset(x_t)
-                pbar.set_postfix(task=task_id)
+                pbar.set_postfix(task=task_id, refresh=False)
                 done = False
                 while not done:
                     _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
@@ -38,3 +38,7 @@ class Evaluator:
                         self.plotter.step(reward, terminated or truncated, task_id, split='eval')
 
                     done = terminated or truncated
+            pbar.update(1)
+        pbar.close()
+
+
