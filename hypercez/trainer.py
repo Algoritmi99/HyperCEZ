@@ -20,7 +20,7 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
-    def train(self, eval=False):
+    def train(self, evaluate=False):
         print("Running Training sequence on", self.device)
         self.agent.train()
         train_cnt = 0
@@ -73,7 +73,7 @@ class Trainer:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
-                if train_cnt % self.hparams.train["eval_interval"] == 0 and eval:
+                if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     for _ in self.hparams.train["eval_n_episode"]:
                         evaluator.evaluate()
