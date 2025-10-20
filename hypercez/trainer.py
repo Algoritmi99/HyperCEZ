@@ -79,8 +79,6 @@ class Trainer:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"])
 
-                print("through")
-
                 it += 1
                 train_cnt += 1
             pbar.close()
