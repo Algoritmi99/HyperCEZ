@@ -1,8 +1,5 @@
 import copy
 
-from numba.np.linalg import outer_impl
-from tqdm import tqdm
-
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.envs.cl_env import CLEnvLoader
 
@@ -14,6 +11,7 @@ class Evaluator:
         self.plotter = plotter
 
     def evaluate(self, steps, pbar=None, render=False):
+        self.agent.eval()
         if pbar is not None:
             pbar.total = steps
             pbar.n = 0

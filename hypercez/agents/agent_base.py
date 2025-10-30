@@ -48,7 +48,7 @@ class Agent:
         raise NotImplementedError
 
     def eval(self):
-        raise NotImplementedError
+        pass
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
         pass

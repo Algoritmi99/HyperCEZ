@@ -118,7 +118,13 @@ class HyperCEZAgent(Agent):
                         self.__dtype = torch.float32
             for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                 w = w.to(device=p.device, dtype=p.dtype)
-                assert torch.equal(p, w)
+                if not torch.equal(p, w):
+                    print("obs:", obs)
+                    print("task_id:", task_id)
+                    print("p:", p)
+                    print("w:", w)
+                    assert False
+                # assert torch.equal(p, w)
         return self.ez_agent.act(obs, task_id, act_type)
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
@@ -126,6 +132,10 @@ class HyperCEZAgent(Agent):
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
         self.__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
+
+    def eval(self):
+        [self.hnet_map[hnet_name].eval() for hnet_name in self.hnet_component_names]
+        self.ez_agent.eval()
 
     def train(self):
         # structure of keys: hnet_name -> task_id -> object
