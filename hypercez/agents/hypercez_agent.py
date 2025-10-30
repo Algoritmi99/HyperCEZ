@@ -13,6 +13,7 @@ from hypercez.hypernet.hypercl.utils import hnet_regularizer as hreg
 from hypercez.hypernet.hypercl.utils import ewc_regularizer as ewc
 from hypercez.hypernet.hypercl.utils import si_regularizer as si
 from hypercez.hypernet.hypercl.utils import optim_step as opstep
+from hypercez.util import check_finite
 
 
 class AgentCtrlType(IntEnum):
@@ -123,6 +124,7 @@ class HyperCEZAgent(Agent):
                     print("task_id:", task_id)
                     print("p:", p)
                     print("w:", w)
+                    check_finite(self.hnet_map[hnet_name])
                     assert False
                 # assert torch.equal(p, w)
         return self.ez_agent.act(obs, task_id, act_type)

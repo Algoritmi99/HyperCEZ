@@ -372,6 +372,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
 
         if task_emb is None:
             task_emb = self._task_embs[task_id]
+            print(type(task_emb))
 
         if self.training and self._temb_std != -1:
             task_emb.add(torch.randn_like(task_emb) * self._temb_std)
