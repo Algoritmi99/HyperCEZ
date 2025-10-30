@@ -239,13 +239,13 @@ class HyperCEZAgent(Agent):
         with torch.amp.autocast(self.device.type):
             loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
 
-        self.ez_agent.scaler.scale(loss_task).backward(
-            retain_graph=calc_reg,
-            create_graph=self.hparams.backprop_dt and calc_reg,
-        )
+        # self.ez_agent.scaler.scale(loss_task).backward(
+        #     retain_graph=calc_reg,
+        #     create_graph=self.hparams.backprop_dt and calc_reg,
+        # )
 
-        # loss_task.backward(retain_graph=calc_reg,
-        #                    create_graph=self.hparams.backprop_dt and calc_reg)
+        loss_task.backward(retain_graph=calc_reg,
+                           create_graph=self.hparams.backprop_dt and calc_reg)
 
         for hnet_name in self.hnet_component_names:
             weights = [v for _, v in full_state[hnet_name].items()]
