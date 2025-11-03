@@ -185,7 +185,7 @@
     "train": {
       "load_model_path": "",
       "batch_size": 256,
-      "training_steps": 200000,
+      "training_steps": 100000,
       "offline_training_steps": 20000,
       "start_transitions": 2000,
       "eval_n_episode": 10,
@@ -331,7 +331,7 @@
     "train": {
       "load_model_path": "",
       "batch_size": 256,
-      "training_steps": 100000,
+      "training_steps": 30000,
       "offline_training_steps": 20000,
       "start_transitions": 2000,
       "eval_n_episode": 10,
