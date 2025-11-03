@@ -56,6 +56,7 @@ class HyperCEZAgent(Agent):
         :param args: a listing of names of agent including one or more of the names listed above or "all", to create hnets for if hnet_map is not provided.
         """
         super().__init__(hparams)
+        self.scalers = None
         self.reg_targets = None
         self.theta_optims = None
         self.emb_optims = None
@@ -195,6 +196,8 @@ class HyperCEZAgent(Agent):
                     lr=self.hparams.lr_hyper
                 )
 
+        self.scalers = {i:torch.amp.GradScaler() for i in range(self.hparams.num_tasks)}
+
         self.learn_called = 0
         self.__training_mode = True
 
@@ -239,13 +242,13 @@ class HyperCEZAgent(Agent):
         with torch.amp.autocast(self.device.type):
             loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
 
-        # self.ez_agent.scaler.scale(loss_task).backward(
-        #     retain_graph=calc_reg,
-        #     create_graph=self.hparams.backprop_dt and calc_reg,
-        # )
+        self.scalers[task_id].scale(loss_task).backward(
+            retain_graph=calc_reg,
+            create_graph=self.hparams.backprop_dt and calc_reg,
+        )
 
-        loss_task.backward(retain_graph=calc_reg,
-                           create_graph=self.hparams.backprop_dt and calc_reg)
+        # loss_task.backward(retain_graph=calc_reg,
+        #                    create_graph=self.hparams.backprop_dt and calc_reg)
 
         for hnet_name in self.hnet_component_names:
             weights = [v for _, v in full_state[hnet_name].items()]
@@ -253,7 +256,9 @@ class HyperCEZAgent(Agent):
             torch.nn.utils.clip_grad_norm_(self.hnet_map[hnet_name].get_task_emb(task_id), self.hparams.grad_max_norm)
 
             # Note, the gradients accumulated so far are from "loss_task".
-            self.emb_optims[hnet_name][task_id].step()
+            self.scalers[task_id].unscale_(self.emb_optims[hnet_name][task_id])
+            self.scalers[task_id].step(self.emb_optims[hnet_name][task_id])
+            # self.emb_optims[hnet_name][task_id].step()
 
             # SI
             if self.hnet_type == HNetType.HNET_SI:
@@ -295,7 +300,8 @@ class HyperCEZAgent(Agent):
 
                 loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
 
-                loss_reg.backward()
+                self.scalers[task_id].scale(loss_reg).backward()
+                # loss_reg.backward()
 
                 if grad_tloss is not None:  # Debug
                     grad_full = torch.cat([d.grad.view(-1) for d in self.hnet_map[hnet_name].theta])
@@ -317,7 +323,10 @@ class HyperCEZAgent(Agent):
                                                                      dT_vec.view(1, -1))
 
             torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
-            self.theta_optims[hnet_name][task_id].step()
+            self.scalers[task_id].unscale_(self.theta_optims[hnet_name][task_id])
+            self.scalers[task_id].step(self.theta_optims[hnet_name][task_id])
+            self.scalers[task_id].update()
+            # self.theta_optims[hnet_name][task_id].step()
             self.learn_called += 1
             self.__memory_manager.increment_trained_steps(task_id)
 
