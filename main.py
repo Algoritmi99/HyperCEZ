@@ -15,8 +15,6 @@ def main():
     # env_name = "pendulum"
     hparams = Hparams(env_name)
 
-    torch.cuda.amp
-
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
