@@ -56,6 +56,7 @@ class Trainer:
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
+                    train_cnt += 1
 
                 # exploration
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
@@ -73,9 +74,9 @@ class Trainer:
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
+                    self.agent.save("./agents/" + self.hparams.env + "/agent_" + str(it) + ".pth")
 
                 it += 1
-                train_cnt += 1
             pbar.close()
 
         if self.plotter is not None:
