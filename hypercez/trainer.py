@@ -25,6 +25,7 @@ class Trainer:
         self.agent.train()
         train_cnt = 0
         pbar = tqdm()
+        evaluated = False
         for task_id in range(self.hparams.num_tasks):
             pbar.set_postfix(task=task_id)
             # random acting to collect data
@@ -57,6 +58,7 @@ class Trainer:
                 if it % self.hparams.dynamics_update_every == 0:
                     self.agent.learn(task_id)
                     train_cnt += 1
+                    evaluated = False
 
                 # exploration
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
@@ -71,10 +73,11 @@ class Trainer:
                     x_t, _ = env.reset()
                     self.agent.reset(x_t)
 
-                if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate:
+                if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate and not evaluated:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
                     self.agent.save("./agents/" + self.hparams.env + "/agent_" + str(it) + ".pth")
+                    evaluated = True
 
                 it += 1
             pbar.close()
