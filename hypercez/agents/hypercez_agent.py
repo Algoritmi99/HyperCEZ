@@ -127,7 +127,6 @@ class HyperCEZAgent(Agent):
                     print("w:", w)
                     check_finite(self.hnet_map[hnet_name])
                     assert False
-                # assert torch.equal(p, w)
         return self.ez_agent.act(obs, task_id, act_type)
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):

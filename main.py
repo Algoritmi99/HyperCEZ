@@ -24,6 +24,8 @@ def main():
     )
     ez_agent.init_model()
 
+    print([i for i, _ in ez_agent.model.named_parameters()])
+
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,
@@ -45,17 +47,17 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_agent1' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/ez_agent1' + "_" + env_name)
 
     trainer = Trainer(
-        hyper_cez_agent,
+        ez_agent,
         hparams,
         cl_env_loader,
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         plotter=plotter,
     )
     trainer.train(evaluate=True)
-    trainer.agent.save('agents/hypercez1' + "_" + env_name + '.agent')
+    trainer.agent.save('agents/ez1' + "_" + env_name + '.agent')
 
 
 if __name__ == "__main__":
