@@ -220,7 +220,7 @@ class HyperCEZAgent(Agent):
             if hnet_name in self.hnet_component_names:
                 new_weights = self.hnet_map[hnet_name](task_id)
             else:
-                new_weights = self.ez_agent.model.__getattr__(hnet_name).parameters()
+                new_weights = [i for i in self.ez_agent.model.__getattr__(hnet_name).parameters()]
 
             if self.hnet_type == HNetType.HNET_SI:
                 # save grad for calculate si path integral if so
@@ -234,6 +234,7 @@ class HyperCEZAgent(Agent):
             ):
                 model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
             full_state[hnet_name] = model_state
+
         # calculate loss
         loss_task, _ = self.ez_agent.calc_loss(
             self.ez_agent.model,
@@ -246,7 +247,7 @@ class HyperCEZAgent(Agent):
             loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
 
         self.scalers[task_id].scale(loss_task).backward(
-            retain_graph=calc_reg,
+            retain_graph=True,
             create_graph=self.hparams.backprop_dt and calc_reg,
         )
 
