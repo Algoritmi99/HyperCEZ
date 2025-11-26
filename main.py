@@ -24,7 +24,6 @@ def main():
     )
     ez_agent.init_model()
 
-
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,
@@ -61,4 +60,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

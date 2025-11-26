@@ -329,17 +329,15 @@ class HyperCEZAgent(Agent):
             torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
             self.scalers[task_id].unscale_(self.theta_optims[hnet_name][task_id])
             self.scalers[task_id].step(self.theta_optims[hnet_name][task_id])
-            self.scalers[task_id].update()
 
             # update ez_agent if necessary
             if Counter(ez_agent_model_list) != Counter(self.hnet_component_names):
-                self.ez_agent.update_weights(
-                    loss_task,
-                    self.ez_agent.model,
-                    self.ez_agent.optimizer,
-                    self.ez_agent.scaler,
-                    target_model=copy.deepcopy(self.ez_agent.reanalyze_model)
-                )
+                # update call step on the ez_agent optimizer
+                self.scalers[task_id].unscale_(self.ez_agent.optimizer)
+                self.scalers[task_id].step(self.ez_agent.optimizer)
+
+            self.scalers[task_id].update()
+
 
             self.learn_called += 1
             self.__memory_manager.increment_trained_steps(task_id)
