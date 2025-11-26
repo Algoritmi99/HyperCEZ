@@ -1610,3 +1610,10 @@ class EZAgent(Agent):
             return self.transforms(observation)
         else:
             return observation
+
+    def get_model_list(self):
+        return [
+            component_name for component_name in dir(self.model) if isinstance(
+                getattr(self.model, component_name), nn.Module
+            )
+        ]

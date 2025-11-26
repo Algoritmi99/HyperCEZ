@@ -1,4 +1,5 @@
 import copy
+from collections import Counter
 from enum import IntEnum
 
 import torch
@@ -214,8 +215,12 @@ class HyperCEZAgent(Agent):
 
         # forward pass through hypernets and create model state
         full_state = {}
-        for hnet_name in self.hnet_component_names:
-            new_weights = self.hnet_map[hnet_name](task_id)
+        ez_agent_model_list = self.ez_agent.get_model_list()
+        for hnet_name in ez_agent_model_list:
+            if hnet_name in self.hnet_component_names:
+                new_weights = self.hnet_map[hnet_name](task_id)
+            else:
+                new_weights = self.ez_agent.model.__getattr__(hnet_name).parameters()
 
             if self.hnet_type == HNetType.HNET_SI:
                 # save grad for calculate si path integral if so
@@ -229,7 +234,6 @@ class HyperCEZAgent(Agent):
             ):
                 model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
             full_state[hnet_name] = model_state
-
         # calculate loss
         loss_task, _ = self.ez_agent.calc_loss(
             self.ez_agent.model,
@@ -325,7 +329,17 @@ class HyperCEZAgent(Agent):
             self.scalers[task_id].unscale_(self.theta_optims[hnet_name][task_id])
             self.scalers[task_id].step(self.theta_optims[hnet_name][task_id])
             self.scalers[task_id].update()
-            # self.theta_optims[hnet_name][task_id].step()
+
+            # update ez_agent if necessary
+            if Counter(ez_agent_model_list) != Counter(self.hnet_component_names):
+                self.ez_agent.update_weights(
+                    loss_task,
+                    self.ez_agent.model,
+                    self.ez_agent.optimizer,
+                    self.ez_agent.scaler,
+                    target_model=copy.deepcopy(self.ez_agent.reanalyze_model)
+                )
+
             self.learn_called += 1
             self.__memory_manager.increment_trained_steps(task_id)
 
