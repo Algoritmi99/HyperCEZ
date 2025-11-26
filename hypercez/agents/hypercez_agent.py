@@ -346,5 +346,3 @@ class HyperCEZAgent(Agent):
 
     def reset(self, obs):
         self.ez_agent.reset(obs)
-
-
