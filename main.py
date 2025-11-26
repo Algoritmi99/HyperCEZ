@@ -24,8 +24,6 @@ def main():
     )
     ez_agent.init_model()
 
-    print([i for i in ez_agent.model.parameters()][2].requires_grad)
-
 
     hyper_cez_agent = HyperCEZAgent(
         hparams,
