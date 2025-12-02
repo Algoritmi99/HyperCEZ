@@ -10,8 +10,10 @@
     "dnn_out": "state",
     "normalize_xu": true,
     "h_dims": [
-      32,
-      32
+      200,
+      200,
+      200,
+      200
     ],
     "out_var": false,
     "lr": 0.001,

@@ -44,7 +44,7 @@ class Agent:
     def reset_trained_steps(self):
         pass
 
-    def learn(self, task_id: int):
+    def learn(self, task_id: int, verbose=False):
         raise NotImplementedError
 
     def eval(self):

@@ -1349,7 +1349,7 @@ class EZAgent(Agent):
 
         return lr
 
-    def learn(self, task_id: int):
+    def learn(self, task_id: int, verbose=False):
         assert self.optimizer is not None, "The agent must be in training mode. try train()!"
         self.make_batch()
         batch = self.batch_storage.pop()

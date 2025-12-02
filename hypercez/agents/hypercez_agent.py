@@ -74,7 +74,7 @@ class HyperCEZAgent(Agent):
         self.__dtype = None
         self.learn_called = 0
 
-    def init_model(self):
+    def init_model(self, scientific_init=True):
         if self.ez_agent is None:
             self.ez_agent = EZAgent(
                 self.hparams,
@@ -94,6 +94,7 @@ class HyperCEZAgent(Agent):
 
 
         assert self.ez_agent is not None and self.hnet_map is not None
+        self.match_ez_params(0)
 
     def to(self, device=torch.device("cpu")):
         super().to(device)
@@ -110,8 +111,8 @@ class HyperCEZAgent(Agent):
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         assert self.hnet_map is not None
         for hnet_name in self.hnet_component_names:
-            new_weights = self.hnet_map[hnet_name](task_id)
             with torch.no_grad():
+                new_weights = self.hnet_map[hnet_name](task_id)
                 for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                     assert p.shape == w.shape
                     w = w.to(device=p.device, dtype=p.dtype, non_blocking=True)
@@ -188,12 +189,14 @@ class HyperCEZAgent(Agent):
 
                 self.theta_optims[hnet_name][task_id] = torch.optim.Adam(
                     self.regularized_params[hnet_name][task_id],
-                    lr=self.hparams.lr_hyper
+                    lr=self.hparams.lr_hyper,
+                    weight_decay=self.hparams.lr_hyper_decay_rate
                 )
 
                 self.emb_optims[hnet_name][task_id] = torch.optim.Adam(
                     [self.hnet_map[hnet_name].get_task_emb(task_id)],
-                    lr=self.hparams.lr_hyper
+                    lr=self.hparams.lr_hyper,
+                    weight_decay=self.hparams.lr_hyper_decay_rate
                 )
 
         self.scalers = {i:torch.amp.GradScaler() for i in range(self.hparams.num_tasks)}
@@ -201,7 +204,53 @@ class HyperCEZAgent(Agent):
         self.learn_called = 0
         self.__training_mode = True
 
-    def learn(self, task_id):
+    def match_ez_params(self, task_id, tol=1e-6, max_steps=5000):
+        """Match HNET params to produce EZ params supervised"""
+        print("Matching EZ params by HNet Params")
+        for hnet_name in self.hnet_component_names:
+            with torch.no_grad():
+                target_weights = [
+                    p.detach().clone().to(self.device) for p in self.ez_agent.model.__getattr__(hnet_name).parameters()
+                ]
+
+            opt = torch.optim.Adam(self.hnet_map[hnet_name].theta, lr=1e-3)
+
+            step = 0
+            while True:
+                opt.zero_grad()
+                pred_weights = self.hnet_map[hnet_name](task_id)
+                assert len(pred_weights) == len(target_weights), "Mismatch in number of tensors"
+
+                loss = torch.tensor(0.0).to(self.device)
+
+                for pw, tw in zip(pred_weights, target_weights):
+                    # Ensure shapes are identical
+                    assert pw.shape == tw.shape, f"Shape mismatch: {pw.shape} vs {tw.shape}"
+                    loss += torch.nn.functional.mse_loss(pw, tw)
+
+                loss.backward()
+                opt.step()
+
+                if step % 100 == 0:
+                    print(f"step {step:5d}  loss {loss.item():.6e}")
+
+                if loss.item() < tol:
+                    print(f"Stopping, loss below tolerance: {loss.item():.6e}")
+                    break
+
+                step += 1
+                if step >= max_steps:
+                    print(f"Reached max_steps={max_steps}, final loss {loss.item():.6e}")
+                    break
+
+    def learn(self, task_id, verbose=False):
+        hnet_example = self.hnet_map[self.hnet_component_names[0]]
+        if verbose:
+            with torch.no_grad():
+                # pick some parameter to track, for example theta[0]
+                before = hnet_example.theta[0].clone()
+
+
         assert self.__training_mode
         batch = self.__memory_manager.make_batch(task_id)
 
@@ -219,8 +268,12 @@ class HyperCEZAgent(Agent):
         for hnet_name in ez_agent_model_list:
             if hnet_name in self.hnet_component_names:
                 new_weights = self.hnet_map[hnet_name](task_id)
+
             else:
                 new_weights = [i for i in self.ez_agent.model.__getattr__(hnet_name).parameters()]
+
+            for w in new_weights:
+                assert w.requires_grad
 
             if self.hnet_type == HNetType.HNET_SI:
                 # save grad for calculate si path integral if so
@@ -229,9 +282,18 @@ class HyperCEZAgent(Agent):
                     weight.retain_grad()
 
             model_state = {}
+
+            if hnet_name in self.hnet_component_names:
+                for p in self.hnet_map[hnet_name].parameters():
+                    assert p.requires_grad
+            else:
+                for p in self.ez_agent.model.__getattr__(hnet_name).parameters():
+                    assert p.requires_grad
+
             for i, param_name in enumerate(
                     [param_name for param_name, _ in self.ez_agent.model.__getattr__(hnet_name).named_parameters()]
             ):
+                assert new_weights[i].requires_grad
                 model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else new_weights[i]
             full_state[hnet_name] = model_state
 
@@ -251,8 +313,23 @@ class HyperCEZAgent(Agent):
             create_graph=self.hparams.backprop_dt and calc_reg,
         )
 
-        # loss_task.backward(retain_graph=calc_reg,
-        #                    create_graph=self.hparams.backprop_dt and calc_reg)
+        ############### SANITY CHECK ###############
+        if verbose:
+            for hnet_name in self.hnet_component_names:
+                print(f"\nHypernet {hnet_name}")
+                total = 0.0
+                count = 0
+                for n, p in self.hnet_map[hnet_name].named_parameters():
+                    if p.grad is None:
+                        print("  ", n, "grad is None")
+                    else:
+                        g = p.grad.abs().mean().item()
+                        print("  ", n, "mean |grad|", g)
+                        total += g
+                        count += 1
+                print("  mean over params:", total / max(count, 1))
+        ###########################################
+
 
         for hnet_name in self.hnet_component_names:
             weights = [v for _, v in full_state[hnet_name].items()]
@@ -341,6 +418,13 @@ class HyperCEZAgent(Agent):
 
             self.learn_called += 1
             self.__memory_manager.increment_trained_steps(task_id)
+
+            if verbose:
+                with torch.no_grad():
+                    after = hnet_example.theta[0]
+                    diff = (after - before).abs().mean().item()
+                    print("############ OPTIMIZER TRACKING ############")
+                    print("mean |delta theta[0]|:", diff)
 
     def reset(self, obs):
         self.ez_agent.reset(obs)

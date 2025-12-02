@@ -42,7 +42,8 @@ class Hparams:
         for attr in [
             "emb_size", "use_hyperfan_init", "hnet_init", "std_normal_init", "std_normal_temb",
             "lr_hyper", "grad_max_norm", "no_look_ahead", "plastic_prev_tembs", "backprop_dt",
-            "use_sgd_change", "ewc_weight_importance", "n_fisher", "si_eps", "mlp_var_minmax"
+            "use_sgd_change", "ewc_weight_importance", "n_fisher", "si_eps", "mlp_var_minmax",
+            "lr_hyper_decay_rate"
         ]:
             setattr(self, attr, hnet_hparams["un-chunked"][attr])
 

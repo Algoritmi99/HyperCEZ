@@ -20,7 +20,7 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
-    def train(self, evaluate=False):
+    def train(self, evaluate=False, verbose=False):
         print("Running Training sequence on", self.device)
         self.agent.train()
         train_cnt = 0
@@ -56,7 +56,7 @@ class Trainer:
                 pbar.set_postfix(task=task_id)
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
-                    self.agent.learn(task_id)
+                    self.agent.learn(task_id, verbose=verbose)
                     train_cnt += 1
                     evaluated = False
 

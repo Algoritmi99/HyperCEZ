@@ -1,4 +1,5 @@
 import torch
+from torchrl.objectives import hold_out_net
 
 from hypercez import Hparams
 from hypercez.agents import EZAgent
@@ -18,11 +19,15 @@ def main():
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
+    print(hparams.hnet_arch)
+
     ez_agent = EZAgent(
         hparams,
         AgentType.DMC_STATE
     )
     ez_agent.init_model()
+
+    # print(ez_agent.model.state_dict())
 
     hyper_cez_agent = HyperCEZAgent(
         hparams,
@@ -30,10 +35,10 @@ def main():
         HNetType.HNET,
         None,
         AgentCtrlType.CONTINUOUS,
-        "representation_model",
+        # "representation_model",
         "dynamics_model",
-        "reward_prediction_model",
-        "value_policy_model",
+        # "reward_prediction_model",
+        # "value_policy_model",
         # "projection_model",
         # "projection_head_model"
     )
@@ -45,7 +50,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/ez_agent1' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_all_initSafe' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -54,7 +59,10 @@ def main():
         device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
         plotter=plotter,
     )
-    trainer.train(evaluate=True)
+    trainer.train(
+        evaluate=True,
+        # verbose=True
+    )
     trainer.agent.save('agents/ez1' + "_" + env_name + '.agent')
 
 
