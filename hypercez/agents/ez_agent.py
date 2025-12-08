@@ -1617,3 +1617,12 @@ class EZAgent(Agent):
                 getattr(self.model, component_name), nn.Module
             )
         ]
+
+    @classmethod
+    def load(cls, path, map_location='cpu'):
+        ckpt = torch.load(path, map_location=map_location, weights_only=False)
+        print([(i, v) for i, v in ckpt.items()])
+        out = cls(ckpt["hparams"], ckpt["agent_type"])
+        for i, v in ckpt.items():
+            out.__setattr__(i, v)
+        return out

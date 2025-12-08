@@ -2,8 +2,8 @@ import torch
 
 from hypercez import Hparams
 from hypercez.agents import EZAgent
-from hypercez.agents.ez_agent import AgentType
-from hypercez.agents.hypercez_agent import HyperCEZAgent, AgentCtrlType, HNetType
+from hypercez.agents.agent_base import Agent
+from hypercez.agents.hypercez_agent import HyperCEZAgent, HNetType, AgentCtrlType
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.trainer import Trainer
 from hypercez.util.plotter import Plotter
@@ -19,11 +19,8 @@ def main():
 
     print(hparams.hnet_arch)
 
-    ez_agent = EZAgent(
-        hparams,
-        AgentType.DMC_STATE
-    )
-    ez_agent.init_model()
+    ez_agent = EZAgent.load("agents/pendulum/agent_1999610.pth")
+    assert isinstance(ez_agent, EZAgent)
 
     # print(ez_agent.model.state_dict())
 
@@ -33,12 +30,12 @@ def main():
         HNetType.HNET,
         None,
         AgentCtrlType.CONTINUOUS,
-        # "representation_model",
+        "representation_model",
         "dynamics_model",
-        # "reward_prediction_model",
-        # "value_policy_model",
-        # "projection_model",
-        # "projection_head_model"
+        "reward_prediction_model",
+        "value_policy_model",
+        "projection_model",
+        "projection_head_model"
     )
 
     hyper_cez_agent.init_model()
@@ -48,7 +45,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_initSafe_non_scaled_no_amp' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_initSafe_non_scaled_no_amp_pre' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -60,7 +57,7 @@ def main():
     trainer.train(
         evaluate=True,
         # verbose=True,
-        agent_name="hypercez_agent_initSafe_non_scaled_no_amp"
+        agent_name="hypercez_agent_initSafe_non_scaled_no_amp_pre"
     )
     trainer.agent.save('agents/ez1' + "_" + env_name + '.agent')
 

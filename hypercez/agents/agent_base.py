@@ -68,7 +68,7 @@ class Agent:
 
     @classmethod
     def load(cls, path, map_location='cpu'):
-        ckpt = torch.load(path, map_location=map_location)
+        ckpt = torch.load(path, map_location=map_location, weights_only=False)
         out = cls(ckpt["hparams"])
         for i, v in ckpt.items():
             out.__dict__[i] = v
