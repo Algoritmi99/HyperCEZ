@@ -212,6 +212,7 @@ class HyperCEZAgent(Agent):
         """Match HNET params to produce EZ params supervised"""
         print("Matching EZ params by HNet Params")
         for hnet_name in self.hnet_component_names:
+            print("Matching", hnet_name)
             with torch.no_grad():
                 target_weights = [
                     p.detach().clone().to(self.device) for p in self.ez_agent.model.__getattr__(hnet_name).parameters()

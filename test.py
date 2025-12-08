@@ -19,7 +19,7 @@ def main():
 
     print(hparams.hnet_arch)
 
-    ez_agent = EZAgent.load("agents/pendulum/agent_1999610.pth")
+    ez_agent = EZAgent.load("agents/pendulum/EZagent_1999600.pth")
     assert isinstance(ez_agent, EZAgent)
 
     # print(ez_agent.model.state_dict())

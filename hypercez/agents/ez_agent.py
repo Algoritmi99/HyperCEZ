@@ -1619,9 +1619,10 @@ class EZAgent(Agent):
         ]
 
     @classmethod
-    def load(cls, path, map_location='cpu'):
+    def load(cls, path, map_location='cpu', verbose=False):
         ckpt = torch.load(path, map_location=map_location, weights_only=False)
-        print([(i, v) for i, v in ckpt.items()])
+        if verbose:
+            print([(i, v) for i, v in ckpt.items()])
         out = cls(ckpt["hparams"], ckpt["agent_type"])
         for i, v in ckpt.items():
             out.__setattr__(i, v)
