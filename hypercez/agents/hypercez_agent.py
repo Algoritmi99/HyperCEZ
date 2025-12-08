@@ -401,7 +401,6 @@ class HyperCEZAgent(Agent):
                 loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
 
                 self.scalers[task_id].scale(loss_reg).backward()
-                # loss_reg.backward()
 
                 if grad_tloss is not None:  # Debug
                     grad_full = torch.cat([d.grad.view(-1) for d in self.hnet_map[hnet_name].theta])
@@ -428,7 +427,7 @@ class HyperCEZAgent(Agent):
 
             # self.theta_optims[hnet_name][task_id].step()
 
-            # update ez_agent if necessary
+        # update ez_agent if necessary
         if Counter(ez_agent_model_list) != Counter(self.hnet_component_names):
             # update call step on the ez_agent optimizer
             self.scalers[task_id].unscale_(self.ez_agent.optimizer)
