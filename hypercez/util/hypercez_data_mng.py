@@ -129,3 +129,8 @@ class HyperCEZDataManager:
             self.trained_steps_map[task_id] = 0
 
         self.trained_steps_map[task_id] += 1
+
+    def get_trained_steps(self, task_id=None):
+        if task_id not in self.trained_steps_map:
+            self.trained_steps_map[task_id] = 0
+        return self.trained_steps_map[task_id]

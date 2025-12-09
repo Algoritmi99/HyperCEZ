@@ -109,8 +109,7 @@ class HyperCEZAgent(Agent):
     def done_training(self, task_id=None, pbar=None):
         self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
 
-    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
-        assert self.hnet_map is not None
+    def copy_ez_params(self, task_id):
         for hnet_name in self.hnet_component_names:
             with torch.no_grad():
                 new_weights = self.hnet_map[hnet_name](task_id)
@@ -124,7 +123,6 @@ class HyperCEZAgent(Agent):
             for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                 w = w.to(device=p.device, dtype=p.dtype)
                 if not torch.equal(p, w):
-                    print("obs:", obs)
                     print("task_id:", task_id)
                     print("p:", p)
                     print("w:", w)
@@ -133,6 +131,9 @@ class HyperCEZAgent(Agent):
                     check_finite(self.hnet_map[hnet_name])
                     assert False
                 self.__theta_before = w
+
+    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        self.copy_ez_params(task_id)
         return self.ez_agent.act(obs, task_id, act_type)
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
@@ -384,6 +385,18 @@ class HyperCEZAgent(Agent):
     def learn(self, task_id, verbose=False):
         assert self.__training_mode
         batch = self.__memory_manager.make_batch(task_id)
+
+        # update internal ez_agent model copies
+        self.copy_ez_params(task_id)
+
+        if self.__memory_manager.get_trained_steps(task_id) % 30 == 0:
+            self.ez_agent.latest_model = copy.deepcopy(self.ez_agent.model)
+
+        if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["self_play_update_interval"] == 0:
+            self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
+
+        if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["reanalyze_update_interval"] == 0:
+            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
 
         # ready optimizers
         self._zero_optimizers(task_id)
