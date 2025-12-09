@@ -1382,6 +1382,8 @@ class EZAgent(Agent):
         self.scaler = scalers[0]
         self.trained_steps += 1
 
+        return weighted_loss.item()
+
     def calc_loss(self, model, batch, replay_buffer, step_count, extra_loss=None, extra_loss_weight=None, model_state=None):
         # init
         batch_size = self.hparams.train["batch_size"]

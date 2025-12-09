@@ -60,7 +60,9 @@ class Trainer:
                         loss = self.agent.learn(task_id, verbose=verbose)
                         train_cnt += 1
                         evaluated = False
-                        if loss is not None and loss < 1e-6:
+                        print(loss)
+                        if loss is not None and loss < 3:
+                            print("Loss is small enough, stopping training", loss)
                             break
 
                 # exploration
