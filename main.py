@@ -48,7 +48,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_initSafe_non_scaled_no_amp' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='hypercez_dyn_agent_initSafe_no_amp' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -58,11 +58,11 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        evaluate=True,
+        # evaluate=True,
         # verbose=True,
-        agent_name="hypercez_agent_initSafe_non_scaled_no_amp"
+        agent_name="hypercez_dyn_agent_initSafe_no_amp"
     )
-    trainer.agent.save('agents/ez1' + "_" + env_name + '.agent')
+    trainer.agent.save('agents/hypercez1' + "_" + env_name + '.agent')
 
 
 if __name__ == "__main__":

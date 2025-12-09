@@ -56,9 +56,12 @@ class Trainer:
                 pbar.set_postfix(task=task_id)
                 # update when it's do
                 if it % self.hparams.dynamics_update_every == 0:
-                    self.agent.learn(task_id, verbose=verbose)
-                    train_cnt += 1
-                    evaluated = False
+                    for _ in range(self.hparams.train_dynamic_iters):
+                        loss = self.agent.learn(task_id, verbose=verbose)
+                        train_cnt += 1
+                        evaluated = False
+                        if loss is not None and loss < 1e-6:
+                            break
 
                 # exploration
                 _, _, u_t = self.agent.act(x_t, task_id=task_id, act_type=ActType.INITIAL)
