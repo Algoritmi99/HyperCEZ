@@ -335,7 +335,7 @@
       "offline_training_steps": 1250,
       "start_transitions": 2000,
       "eval_n_episode": 10,
-      "eval_interval": 5000,
+      "eval_interval": 50,
       "self_play_update_interval": 100,
       "reanalyze_update_interval": 200,
       "save_ckpt_interval": 10000,
