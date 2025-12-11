@@ -58,7 +58,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        # evaluate=True,
+        evaluate=True,
         # verbose=True,
         agent_name="hypercez_all_agent_initSafe"
     )
