@@ -211,7 +211,10 @@ class HyperCEZAgent(Agent):
 
     def match_ez_params(self, task_id, tol=1e-6, max_steps=5000):
         """Match HNET params to produce EZ params supervised"""
-        print("Matching EZ params by HNet Params")
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.to(torch.device(device))
+
+        print("Matching EZ params by HNet Params on", device)
         for hnet_name in self.hnet_component_names:
             print("Matching", hnet_name)
             with torch.no_grad():

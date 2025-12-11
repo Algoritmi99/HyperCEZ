@@ -2,7 +2,6 @@ import torch
 
 from hypercez import Hparams
 from hypercez.agents import EZAgent
-from hypercez.agents.agent_base import Agent
 from hypercez.agents.hypercez_agent import HyperCEZAgent, HNetType, AgentCtrlType
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.trainer import Trainer

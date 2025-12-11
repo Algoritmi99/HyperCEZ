@@ -33,12 +33,12 @@ def main():
         HNetType.HNET,
         None,
         AgentCtrlType.CONTINUOUS,
-        # "representation_model",
+        "representation_model",
         "dynamics_model",
-        # "reward_prediction_model",
-        # "value_policy_model",
-        # "projection_model",
-        # "projection_head_model"
+        "reward_prediction_model",
+        "value_policy_model",
+        "projection_model",
+        "projection_head_model"
     )
 
     hyper_cez_agent.init_model()
