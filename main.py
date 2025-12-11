@@ -25,8 +25,6 @@ def main():
     )
     ez_agent.init_model()
 
-    # print(ez_agent.model.state_dict())
-
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,
