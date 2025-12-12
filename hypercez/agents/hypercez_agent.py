@@ -69,6 +69,7 @@ class HyperCEZAgent(Agent):
         self.hnet_map = hnet_map
         self.control_type = ctrl_type
         self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
+        self.hnet_component_names = [i for i in self.ez_agent.get_model_list()] if args[0] == "all" else self.hnet_component_names
         self.__memory_manager = HyperCEZDataManager(self.ez_agent)
         self.__training_mode = False
         self.__dtype = None
