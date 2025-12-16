@@ -31,13 +31,13 @@ def main():
         HNetType.HNET,
         None,
         AgentCtrlType.CONTINUOUS,
-        # "representation_model",
-        # "dynamics_model",
-        # "reward_prediction_model",
-        # "value_policy_model",
+        "representation_model",
+        "dynamics_model",
+        "reward_prediction_model",
+        "value_policy_model",
         # "projection_model",
         # "projection_head_model"
-        "all"
+        # "all"
     )
 
     hyper_cez_agent.init_model()
@@ -57,7 +57,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        evaluate=True,
+        # evaluate=True,
         # verbose=True,
         agent_name="hypercez_all_agent_initSafe"
     )
