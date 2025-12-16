@@ -322,6 +322,7 @@ class HyperCEZAgent(Agent):
 
         # compute regularization term loss and backward
         if calc_reg:
+            loss_reg = 0.0
             for hnet_name in self.hnet_component_names:
                 if self.hparams.no_look_ahead:
                     dTheta = None
@@ -336,7 +337,7 @@ class HyperCEZAgent(Agent):
                 else:
                     dTembs = None
 
-                loss_reg = hreg.calc_fix_target_reg(self.hnet_map[hnet_name],
+                loss_reg += hreg.calc_fix_target_reg(self.hnet_map[hnet_name],
                                                     task_id,
                                                     targets=self.reg_targets[hnet_name][task_id],
                                                     dTheta=dTheta,
@@ -346,9 +347,8 @@ class HyperCEZAgent(Agent):
                                                     fisher_estimates=self.fisher_ests[hnet_name][task_id],
                                                     si_omega=self.si_omegas[hnet_name][task_id])
 
-                loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
-
-                self.scalers[task_id].scale(loss_reg).backward()
+            loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
+            self.scalers[task_id].scale(loss_reg).backward()
 
         # SI scaling if SI hnet type
         scale = self.scalers[task_id].get_scale()
