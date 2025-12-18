@@ -21,6 +21,8 @@ def main():
     ez_agent = EZAgent.load("agents/pendulum/EZagent_1999600.pth")
     assert isinstance(ez_agent, EZAgent)
 
+    ez_agent.total_train_steps = 1500
+
     # print(ez_agent.model.state_dict())
 
     hyper_cez_agent = HyperCEZAgent(

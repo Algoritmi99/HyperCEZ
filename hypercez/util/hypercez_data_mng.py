@@ -112,14 +112,24 @@ class HyperCEZDataManager:
 
         if pbar is not None:
             pbar.total = self.ez_agent.hparams.train['start_transitions']
-            pbar.n = self.replay_buffer_map[task_id].get_transition_num()
+
+            if task_id in self.replay_buffer_map:
+                pbar.n = self.replay_buffer_map[task_id].get_transition_num()
+            else:
+                pbar.n = 0
+
             pbar.refresh()
 
-        return self.replay_buffer_map[task_id].get_transition_num() >= self.ez_agent.hparams.train['start_transitions']
+        return (
+            self.replay_buffer_map[task_id].get_transition_num() >= self.ez_agent.hparams.train['start_transitions']
+            if task_id in self.replay_buffer_map
+            else False
+        )
 
     def done_training(self, task_id=None, pbar=None):
         if task_id not in self.trained_steps_map:
             self.trained_steps_map[task_id] = 0
+            self.trained_steps_map[0] = 2999
 
         self.ez_agent.trained_steps = self.trained_steps_map[task_id]
         return self.ez_agent.done_training(pbar=pbar)

@@ -27,12 +27,12 @@ class Trainer:
         pbar = tqdm()
         evaluated = False
         for task_id in range(self.hparams.num_tasks):
+            pbar.set_description("Collecting data")
             pbar.set_postfix(task=task_id)
             # random acting to collect data
             env = self.env_loader.get_env(task_id)
             x_t, _ = env.reset()
             self.agent.reset(x_t)
-            pbar.set_description("Collecting data")
             while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
                 _, _, u = self.agent.act_init(x_t, task_id=task_id)
                 x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
@@ -50,8 +50,6 @@ class Trainer:
             x_t, _ = env.reset()
             self.agent.reset(x_t)
             it = 0
-            pbar.set_description("Training")
-
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 pbar.set_description("Training")
                 pbar.set_postfix(task=task_id)
@@ -82,7 +80,7 @@ class Trainer:
                     evaluated = True
 
                 it += 1
-            pbar.close()
+        pbar.close()
 
         if self.plotter is not None:
             self.plotter.plot()
