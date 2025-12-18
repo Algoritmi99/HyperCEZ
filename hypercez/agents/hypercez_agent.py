@@ -108,7 +108,7 @@ class HyperCEZAgent(Agent):
         return self.__memory_manager.is_ready_for_training(task_id=task_id, pbar=pbar)
 
     def done_training(self, task_id=None, pbar=None):
-        self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
+        return self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
 
     def copy_ez_params(self, task_id):
         for hnet_name in self.hnet_component_names:

@@ -33,8 +33,8 @@ def main():
         "dynamics_model",
         "reward_prediction_model",
         "value_policy_model",
-        "projection_model",
-        "projection_head_model"
+        # "projection_model",
+        # "projection_head_model"
     )
 
     hyper_cez_agent.init_model()
@@ -44,7 +44,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_initSafe_non_scaled_no_amp_pre' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez_agent_t1' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -54,7 +54,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        evaluate=True,
+        # evaluate=True,
         # verbose=True,
         agent_name="hypercez_agent_initSafe_non_scaled_no_amp_pre"
     )

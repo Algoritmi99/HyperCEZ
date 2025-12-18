@@ -51,6 +51,7 @@ class Trainer:
             self.agent.reset(x_t)
             it = 0
             pbar.set_description("Training")
+
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 pbar.set_description("Training")
                 pbar.set_postfix(task=task_id)
