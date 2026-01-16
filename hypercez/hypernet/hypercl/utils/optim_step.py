@@ -288,7 +288,8 @@ def adam_step(optimizer, detach_dp=True):
                 grad.add_(p.data, alpha=group['weight_decay'])
 
             # Decay the first and second moment running average coefficient
-            exp_avg.mul_(beta1).add_(1 - beta1, grad)
+            # exp_avg.mul_(beta1).add_(1 - beta1, grad)
+            exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
             #exp_avg.mul_(beta1)
             #exp_avg += (1 - beta1) * grad
 
