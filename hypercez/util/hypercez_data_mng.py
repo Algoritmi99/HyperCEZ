@@ -129,7 +129,6 @@ class HyperCEZDataManager:
     def done_training(self, task_id=None, pbar=None):
         if task_id not in self.trained_steps_map:
             self.trained_steps_map[task_id] = 0
-            self.trained_steps_map[0] = 2999
 
         self.ez_agent.trained_steps = self.trained_steps_map[task_id]
         return self.ez_agent.done_training(pbar=pbar)
