@@ -10,8 +10,8 @@ from hypercez.util.plotter import Plotter
 
 
 def main():
-    # env_name = "half_cheetah"
-    env_name = "pendulum"
+    env_name = "half_cheetah"
+    # env_name = "pendulum"
     hparams = Hparams(env_name)
 
     hparams.add_ez_hparams(2)
@@ -57,7 +57,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        # evaluate=True,
+        evaluate=True,
         # verbose=True,
         agent_name="hypercez_all_agent_initSafe"
     )
