@@ -87,7 +87,14 @@ class MCTS_base:
         Dist = SquashedNormal
         mean, std = policy[:, :action_dim], policy[:, action_dim:]
         distr = Dist(mean, std)
-        sampled_actions = distr.sample(torch.Size([n_policy + n_random]))
+        try:
+            sampled_actions = distr.sample(torch.Size([n_policy + n_random]))
+        except Exception as e:
+            print(n_policy)
+            print(n_random)
+            print(sample_nums)
+            print(policy.shape)
+            raise e
 
         policy_actions = sampled_actions[:n_policy]
         random_actions = sampled_actions[-n_random:]

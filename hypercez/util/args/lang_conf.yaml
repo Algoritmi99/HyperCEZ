@@ -1,3 +1,3 @@
 mcts_lang:
-  lang: Python
-#  lang: Cython
+#  lang: Python
+  lang: Cython
