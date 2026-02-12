@@ -272,7 +272,7 @@
       "GAE_max_steps": 15,
       "dynamic_type": null,
       "init_zero": true,
-      "use_bn": true,
+      "use_bn": false,
       "use_p_norm": false,
       "num_blocks": 2,
       "hidden_shape": 128,

@@ -8,4 +8,4 @@ def check_finite(model):
         if not torch.isfinite(p).all():
             bad.append(name)
     if bad:
-        raise RuntimeError(f"Non-finite values detected in: {', '.join(bad)}")
+        raise RuntimeError(f"Non-finite values detected in {model}: {', '.join(bad)}")

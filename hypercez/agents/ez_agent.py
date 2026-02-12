@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn import L1Loss
 
+from hypercez import check_finite
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.agents.models.alt_model import DynamicsNetwork as AltDynamicsNetwork
 from hypercez.agents.models.alt_model import RepresentationNetwork as AltRepresentationNetwork
@@ -449,7 +450,7 @@ class EZAgent(Agent):
             pbar.refresh()
         return self.trained_steps >= self.total_train_steps
 
-    def act(self, obs, task_id=None, act_type: ActType = ActType.TRAIN, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
+    def act(self, obs, task_id=None, act_type: ActType = ActType.TRAIN, decision_model: DecisionModel = DecisionModel.SELF_PLAY, model_state=None):
         if decision_model == DecisionModel.SELF_PLAY:
             model = self.self_play_model
         elif decision_model == DecisionModel.LATEST:
@@ -473,7 +474,13 @@ class EZAgent(Agent):
 
         with torch.no_grad():
             with torch.amp.autocast(self.device.type):
-                states, values, policies = model.initial_inference(current_stacked_obs)
+                states, values, policies = model.initial_inference(current_stacked_obs, model_state=model_state)
+                if torch.isnan(policies).any():
+                    for param in model.named_parameters():
+                        print(param)
+
+                    check_finite(model.value_policy_model)
+                    raise ValueError("model error!")
 
         values = values.detach().cpu().numpy().flatten()
 
@@ -489,11 +496,11 @@ class EZAgent(Agent):
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
                 r_values, r_policies, best_actions, _ = mcts.search(
-                    model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0
+                    model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0, model_state=model_state
                 )
             else:
                 r_values, r_policies, best_actions, _ = mcts.search_ori_mcts(
-                    model, states.shape[0], states, values, policies, use_noise=False
+                    model, states.shape[0], states, values, policies, use_noise=False, model_state=model_state
                 )
         else:
             r_values, r_policies, best_actions, _, _, _ = mcts.search_continuous(
@@ -504,7 +511,8 @@ class EZAgent(Agent):
                 policies,
                 use_gumble_noise=False,
                 verbose=0,
-                add_noise=False
+                add_noise=False,
+                model_state=model_state
             )
 
         if self.training_mode:

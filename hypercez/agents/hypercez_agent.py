@@ -114,6 +114,11 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             with torch.no_grad():
                 new_weights = self.hnet_map[hnet_name](task_id)
+                for new_weight in new_weights:
+                    if torch.isnan(new_weight).any().item():
+                        print("NaNs in generated weights in", hnet_name, "for task", task_id)
+                        check_finite(self.hnet_map[hnet_name])
+                        raise RuntimeError("NaNs in generated weights")
                 for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
                     assert p.shape == w.shape
                     w = w.to(device=p.device, dtype=p.dtype, non_blocking=True)
@@ -134,8 +139,11 @@ class HyperCEZAgent(Agent):
                 self.__theta_before = w
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
-        self.copy_ez_params(task_id)
-        return self.ez_agent.act(obs, task_id, act_type)
+        # self.copy_ez_params(task_id)
+        # return self.ez_agent.act(obs, task_id, act_type)
+
+        state = self.make_ez_state(task_id)
+        return self.ez_agent.act(obs, task_id, act_type, model_state=state)
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         return self.act(obs, task_id, act_type)
