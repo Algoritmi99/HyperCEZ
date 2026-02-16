@@ -46,7 +46,7 @@ class HyperCEZDataManager:
 
         self.ez_agent.mem_id = task_id
 
-    def make_batch(self, task_id):
+    def make_batch(self, task_id, reanalyze_state):
         if not hasattr(self.ez_agent, "mem_id"):
             # Save current memory
             self.ez_agent.mem_id = task_id
@@ -56,7 +56,7 @@ class HyperCEZDataManager:
             self.batch_storage_map[self.ez_agent.mem_id] = self.ez_agent.batch_storage
             self.prev_traj_map[self.ez_agent.mem_id] = self.ez_agent.prev_traj
 
-            self.ez_agent.make_batch()
+            self.ez_agent.make_batch(model_state=reanalyze_state)
             return self.ez_agent.batch_storage.pop()
         elif self.ez_agent.mem_id != task_id:
             # Save current memory
@@ -76,7 +76,7 @@ class HyperCEZDataManager:
             else:
                 raise Exception("No memory found for task id {}".format(task_id))
 
-            self.ez_agent.make_batch()
+            self.ez_agent.make_batch(model_state=reanalyze_state)
             batch = self.ez_agent.batch_storage.pop()
 
             # recover agent memory
@@ -87,7 +87,7 @@ class HyperCEZDataManager:
             self.ez_agent.prev_traj = self.prev_traj_map[self.ez_agent.mem_id]
             return batch
         else:
-            self.ez_agent.make_batch()
+            self.ez_agent.make_batch(model_state=reanalyze_state)
             return self.ez_agent.batch_storage.pop()
 
     def get_item(self, item_name, task_id):

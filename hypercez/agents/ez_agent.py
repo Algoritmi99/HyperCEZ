@@ -723,7 +723,7 @@ class EZAgent(Agent):
         else:
             return 1.0
 
-    def make_batch(self):
+    def make_batch(self, model_state=None):
         # ==============================================================================================================
         # Prepare
         # ==============================================================================================================
@@ -814,7 +814,8 @@ class EZAgent(Agent):
             transition_pos_lst,
             indices_lst,
             collected_transitions,
-            self.trained_steps
+            self.trained_steps,
+            model_state=model_state
         )
 
         (
@@ -832,7 +833,8 @@ class EZAgent(Agent):
             state_lst=pre_calc[0],
             value_lst=pre_calc[1],
             policy_lst=pre_calc[2],
-            policy_mask=pre_calc[3]
+            policy_mask=pre_calc[3],
+            model_state=model_state
         )
 
         batch_policies = batch_policies_re
@@ -869,7 +871,7 @@ class EZAgent(Agent):
         self.batch_storage.push(batch)
         return batch
         
-    def prepare_reward_value_gae(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
+    def prepare_reward_value_gae(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps, model_state=None):
         # value prefix (or reward), value
         batch_value_prefixes, batch_values = [], []
         extra = max(
@@ -918,8 +920,8 @@ class EZAgent(Agent):
                 policy_obs_lst.append(obs)
 
         # reanalyze the bootstrapped value v_{t+k}
-        _, value_lst, _ = self.efficient_inference_reanalyze(value_obs_lst, only_value=True)
-        state_lst, ori_cur_value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False)
+        _, value_lst, _ = self.efficient_inference_reanalyze(value_obs_lst, only_value=True, model_state=model_state)
+        state_lst, ori_cur_value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False, model_state=model_state)
         # v_{t+k}
         batch_size = len(value_lst)
         value_lst = value_lst.reshape(-1) * (np.array([self.hparams.reward_discount for _ in range(batch_size)]) ** td_steps_lst)
@@ -1014,7 +1016,7 @@ class EZAgent(Agent):
         return np.asarray(batch_value_prefixes), np.asarray(batch_values), np.asarray(td_steps_lst).flatten(), \
                (state_lst_cut, ori_cur_value_lst_cut, policy_lst_cut, policy_mask_cut), value_masks
 
-    def prepare_reward_value(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps):
+    def prepare_reward_value(self, traj_lst, transition_pos_lst, indices_lst, collected_transitions, trained_steps, model_state=None):
         # value prefix (or reward), value
         batch_value_prefixes, batch_values = [], []
         # search_values = []
@@ -1059,7 +1061,7 @@ class EZAgent(Agent):
                 td_steps_lst.append(td_steps)
 
         # reanalyze the bootstrapped value v_{t+k}
-        state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(value_obs_lst, only_value=True)
+        state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(value_obs_lst, only_value=True, model_state=model_state)
         batch_size = len(value_lst)
         value_lst = value_lst.reshape(-1) * (np.array([self.hparams.reward_discount for _ in range(batch_size)]) ** td_steps_lst)
         value_lst = value_lst * np.array(value_mask)
@@ -1155,7 +1157,7 @@ class EZAgent(Agent):
         return batch_value_prefixes, np.asarray(batch_values), td_steps_lst.flatten(), \
                (None, None, None, None), value_masks
 
-    def efficient_inference_reanalyze(self, obs_lst, only_value=False, value_idx=0):
+    def efficient_inference_reanalyze(self, obs_lst, only_value=False, value_idx=0, model_state=None):
         batch_size = len(obs_lst)
         obs_lst = np.asarray(obs_lst)
         state_lst, value_lst, policy_lst = [], [], []
@@ -1173,7 +1175,7 @@ class EZAgent(Agent):
                 ).to(self.device)
                 # obtain the statistics at current steps
                 with torch.amp.autocast(self.device.type):
-                    states, values, policies = self.reanalyze_model.initial_inference(current_obs)
+                    states, values, policies = self.reanalyze_model.initial_inference(current_obs, model_state=model_state)
 
                 # process outputs
                 values = values.detach().cpu().numpy().flatten()
@@ -1197,7 +1199,8 @@ class EZAgent(Agent):
                                  state_lst=None,
                                  value_lst=None,
                                  policy_lst=None,
-                                 policy_mask=None):
+                                 policy_mask=None,
+                                 model_state=None):
         # policy
         reanalyzed_values = []
         batch_policies = []
@@ -1225,7 +1228,7 @@ class EZAgent(Agent):
                     policy_obs_lst.append(obs)
 
             # reanalyze the search policy pi_{t}
-            state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False)
+            state_lst, value_lst, policy_lst = self.efficient_inference_reanalyze(policy_obs_lst, only_value=False, model_state=model_state)
 
         # tree search for policies
         batch_size = len(state_lst)

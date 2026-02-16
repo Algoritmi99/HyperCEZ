@@ -14,7 +14,7 @@ from hypercez.hypernet.hypercl.utils import hnet_regularizer as hreg
 from hypercez.hypernet.hypercl.utils import ewc_regularizer as ewc
 from hypercez.hypernet.hypercl.utils import si_regularizer as si
 from hypercez.hypernet.hypercl.utils import optim_step as opstep
-from hypercez.util import check_finite
+from hypercez.util import check_finite, deep_copy_full_state
 
 
 class AgentCtrlType(IntEnum):
@@ -75,6 +75,9 @@ class HyperCEZAgent(Agent):
         self.__dtype = None
         self.learn_called = 0
         self.__theta_before = None
+        self.latest_state = None
+        self.self_play_state = None
+        self.reanalyze_state = None
 
     def init_model(self, scientific_init=True):
         if self.ez_agent is None:
@@ -281,6 +284,8 @@ class HyperCEZAgent(Agent):
                 if not torch.isfinite(flat).all():
                     print("Non finite generated weights in", hnet_name, "for task", task_id)
                     print("min", flat.min().item(), "max", flat.max().item())
+                    for hnet_name in self.hnet_component_names:
+                        check_finite(self.hnet_map[hnet_name])
                     raise RuntimeError("Non finite weights from hypernet")
 
             for w in new_weights:
@@ -396,25 +401,26 @@ class HyperCEZAgent(Agent):
 
     def learn(self, task_id, verbose=False):
         assert self.__training_mode
-        batch = self.__memory_manager.make_batch(task_id)
+
+        # create full state using hypernets
+        full_state = self.make_ez_state(task_id)
 
         # update internal ez_agent model copies
         self.copy_ez_params(task_id)
 
         if self.__memory_manager.get_trained_steps(task_id) % 30 == 0:
-            self.ez_agent.latest_model = copy.deepcopy(self.ez_agent.model)
+            self.latest_state = deep_copy_full_state(full_state)
 
         if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["self_play_update_interval"] == 0:
-            self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
+            self.self_play_state = deep_copy_full_state(full_state)
 
         if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["reanalyze_update_interval"] == 0:
-            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
+            self.reanalyze_state = deep_copy_full_state(full_state)
+
+        batch = self.__memory_manager.make_batch(task_id, self.reanalyze_state)
 
         # ready optimizers
         self._zero_optimizers(task_id)
-
-        # create full state using hypernets
-        full_state = self.make_ez_state(task_id)
 
         # calculate loss
         loss_task, _ = self.ez_agent.calc_loss(

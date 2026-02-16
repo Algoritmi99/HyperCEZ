@@ -348,7 +348,7 @@
       "decorrelation_coeff": 0.01,
       "off_diag_coeff": 0.005,
       "entropy_coeff": 0.05,
-      "max_grad_norm": 5,
+      "max_grad_norm": 1,
       "change_temperature": true,
       "periodic_reset": false,
       "value_reanalyze": false,
