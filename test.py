@@ -10,6 +10,7 @@ from hypercez.util.plotter import Plotter
 
 def main():
     # env_name = "half_cheetah"
+    print([] == "singular")
     env_name = "pendulum"
     hparams = Hparams(env_name)
 

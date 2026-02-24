@@ -1,105 +1,60 @@
 import copy
 from collections import Counter
-from enum import IntEnum
 
 import torch
-import torch.nn as nn
 
+from hypercez import check_finite, make_scheduler, adjust_lr
 from hypercez.agents import EZAgent
 from hypercez.agents.agent_base import Agent, ActType
-from hypercez.agents.ez_agent import AgentType
+from hypercez.agents.ez_agent import DecisionModel
 from hypercez.hypernet import build_hnet
-from hypercez.util.hypercez_data_mng import HyperCEZDataManager
-from hypercez.hypernet.hypercl.utils import hnet_regularizer as hreg
+from hypercez.hypernet.hypercl.utils import hnet_regularizer
 from hypercez.hypernet.hypercl.utils import ewc_regularizer as ewc
-from hypercez.hypernet.hypercl.utils import si_regularizer as si
-from hypercez.hypernet.hypercl.utils import optim_step as opstep
-from hypercez.util import check_finite, deep_copy_full_state
+from hypercez.util.hypercez_data_mng import HyperCEZDataManager
 
-
-class AgentCtrlType(IntEnum):
-    DISCRETE = 0
-    IMG_BASED = 1
-    CONTINUOUS = 2
-
-class HNetType(IntEnum):
-    HNET = 0
-    HNET_SI = 1
-    HNET_EWC = 2
-    HNET_MT = 3
-    HNET_REPLAY = 4
 
 class HyperCEZAgent(Agent):
-    def __init__(self,
-                 hparams,
-                 ez_agent: EZAgent = None,
-                 hnet_type: HNetType = HNetType.HNET,
-                 hnet_map: dict[str, nn.Module] = None,
-                 ctrl_type=AgentCtrlType.CONTINUOUS,
-                 *args: str,
-                 ):
-        """
-        An EfficientZeroV2 agent that uses hypernetworks for continual learning on each of its components.
-
-        The keys of hnet_map or the strings provided as *args can include one or more of the following:
-        [
-            "representation_model",
-            "dynamics_model",
-            "reward_prediction_model",
-            "value_policy_model",
-            "projection_model",
-            "projection_head_model"
-        ]
-        :param hparams: HParams object with added values
-        :param ez_agent: EZAgent object correctly initialized
-        :param hnet_map: a map with keys being one of the names mentioned above or "all" and values being nn.Module objects
-        :param ctrl_type: Specifies the type of controller to be used (img based, discrete or continuous)
-        :param args: a listing of names of agent including one or more of the names listed above or "all", to create hnets for if hnet_map is not provided.
-        """
+    def __init__(self, hparams, ez_agent: EZAgent, *hnet_component_names):
         super().__init__(hparams)
-        self.scalers = None
-        self.reg_targets = None
-        self.theta_optims = None
-        self.emb_optims = None
-        self.regularized_params = None
-        self.fisher_ests = None
-        self.si_omegas = None
+        self.hparams = hparams
         self.ez_agent = ez_agent
-        self.hnet_type = hnet_type
-        self.hnet_map = hnet_map
-        self.control_type = ctrl_type
-        self.hnet_component_names = list(args) if hnet_map is None else list(hnet_map.keys())
-        self.hnet_component_names = [i for i in self.ez_agent.get_model_list()] if args[0] == "all" else self.hnet_component_names
+        self.hnet_map = {}
+        self.hnet_map_self_play = None
+        self.hnet_map_latest = None
+        self.hnet_map_reanalyze = None
+        self.hnet_component_names = list(hnet_component_names)
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "all":
+            self.hnet_component_names = ez_agent.get_model_list()
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "none":
+            self.hnet_component_names = []
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "default":
+            self.hnet_component_names = [
+                "representation_model",
+                "dynamics_model",
+                "reward_prediction_model",
+                "value_policy_model"
+            ]
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
+            self.hnet_component_names = ["singular"]
+
+        self.training_mode = False
+        self.schedulers = None
+        self.seen_tasks:set[int] = set()
+        self.cl_training_misc = {}
         self.__memory_manager = HyperCEZDataManager(self.ez_agent)
-        self.__training_mode = False
-        self.__dtype = None
-        self.learn_called = 0
-        self.__theta_before = None
-        self.latest_state = None
-        self.self_play_state = None
-        self.reanalyze_state = None
 
-    def init_model(self, scientific_init=True):
-        if self.ez_agent is None:
-            self.ez_agent = EZAgent(
-                self.hparams,
-                AgentType(self.control_type.value)
-            )
-        if self.hnet_map is None:
-            assert len(self.hnet_component_names) > 0, "either hnet_map or hnet_items should be provided!"
-            self.hnet_map = {}
-            for hnet_comp in self.hnet_component_names:
-                hnet = build_hnet(
+    def init_model(self):
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
+            self.hnet_map = {"singular": build_hnet(hparams=self.hparams, model=self.ez_agent.model)}
+        else:
+            for component_name in self.hnet_component_names:
+                self.hnet_map[component_name] = build_hnet(
                     hparams=self.hparams,
-                    model=self.ez_agent.get_model(hnet_comp)
+                    model=self.ez_agent.model.__getattr__(component_name)
                 )
-                for task in range(self.hparams.num_tasks):
-                    hnet.add_task(task, self.hparams.std_normal_temb)
-                self.hnet_map[hnet_comp] = hnet
-
-
-        assert self.ez_agent is not None and self.hnet_map is not None
+        self.add_task(0)
         self.match_ez_params(0)
+        self.ez_agent.mem_id = 0
 
     def to(self, device=torch.device("cpu")):
         super().to(device)
@@ -113,113 +68,8 @@ class HyperCEZAgent(Agent):
     def done_training(self, task_id=None, pbar=None):
         return self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
 
-    def copy_ez_params(self, task_id):
-        for hnet_name in self.hnet_component_names:
-            with torch.no_grad():
-                new_weights = self.hnet_map[hnet_name](task_id)
-                for new_weight in new_weights:
-                    if torch.isnan(new_weight).any().item():
-                        print("NaNs in generated weights in", hnet_name, "for task", task_id)
-                        check_finite(self.hnet_map[hnet_name])
-                        raise RuntimeError("NaNs in generated weights")
-                for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
-                    assert p.shape == w.shape
-                    w = w.to(device=p.device, dtype=p.dtype, non_blocking=True)
-                    w.requires_grad_(p.requires_grad)
-                    p.copy_(w)
-                    if self.__dtype is None:
-                        self.__dtype = torch.float32
-            for p, w in zip(self.ez_agent.model.__getattr__(hnet_name).parameters(), new_weights):
-                w = w.to(device=p.device, dtype=p.dtype)
-                if not torch.equal(p, w):
-                    print("task_id:", task_id)
-                    print("p:", p)
-                    print("w:", w)
-                    print("learn called", self.learn_called, "times")
-                    print(self.__theta_before)
-                    check_finite(self.hnet_map[hnet_name])
-                    assert False
-                self.__theta_before = w
-
-    def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
-        # self.copy_ez_params(task_id)
-        # return self.ez_agent.act(obs, task_id, act_type)
-
-        state = self.make_ez_state(task_id)
-        return self.ez_agent.act(obs, task_id, act_type, model_state=state)
-
-    def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
-        return self.act(obs, task_id, act_type)
-
-    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
-        self.__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
-
-    def eval(self):
-        [self.hnet_map[hnet_name].eval() for hnet_name in self.hnet_component_names]
-        self.ez_agent.eval()
-
-    def train(self):
-        # structure of keys: hnet_name -> task_id -> object
-        self.reg_targets = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.theta_optims = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.emb_optims = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.regularized_params = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.fisher_ests = {hnet_name: {} for hnet_name in self.hnet_component_names}
-        self.si_omegas = {hnet_name: {} for hnet_name in self.hnet_component_names}
-
-        # put hnets and ez_agent to training mode
-        [self.hnet_map[hnet_name].train() for hnet_name in self.hnet_component_names]
-        self.ez_agent.train()
-
-        for hnet_name in self.hnet_component_names:
-            for task_id in range(self.hparams.num_tasks):
-                self.reg_targets[hnet_name][task_id] = hreg.get_current_targets(task_id, self.hnet_map[hnet_name])
-
-                self.fisher_ests[hnet_name][task_id] = None
-                if self.hparams.ewc_weight_importance and task_id > 0:
-                    self.fisher_ests[hnet_name][task_id] = []
-                    n_W = len(self.hnet_map[hnet_name].target_shapes)
-                    for t in range(task_id):
-                        ff = []
-                        for i in range(n_W):
-                            _, buff_f_name = ewc._ewc_buffer_names(t, i, False)
-                            ff.append(getattr(self.ez_agent.model.__getattr__(hnet_name), buff_f_name))
-                        self.fisher_ests[hnet_name][task_id].append(ff)
-
-                self.si_omegas[hnet_name][task_id] = None
-                if self.hnet_type == HNetType.HNET_SI:
-                    si.si_register_buffer(
-                        self.ez_agent.model.__getattr__(hnet_name),
-                        self.hnet_map[hnet_name],
-                        task_id
-                    )
-                    if task_id > 0:
-                        self.si_omegas[hnet_name][task_id] = si.get_si_omega(
-                            self.ez_agent.model.__getattr__(hnet_name),
-                            task_id
-                        )
-
-                self.regularized_params[hnet_name][task_id] = list(self.hnet_map[hnet_name].theta)
-                if task_id > 0 and self.hparams.plastic_prev_tembs:
-                    for i in range(task_id):  # for all previous task embeddings
-                        self.regularized_params[hnet_name][task_id].append(self.hnet_map[hnet_name].get_task_emb(i))
-
-                self.theta_optims[hnet_name][task_id] = torch.optim.Adam(
-                    self.regularized_params[hnet_name][task_id],
-                    lr=self.hparams.lr_hyper,
-                    weight_decay=self.hparams.lr_hyper_decay_rate
-                )
-
-                self.emb_optims[hnet_name][task_id] = torch.optim.Adam(
-                    [self.hnet_map[hnet_name].get_task_emb(task_id)],
-                    lr=self.hparams.lr_hyper,
-                    weight_decay=self.hparams.lr_hyper_decay_rate
-                )
-
-        self.scalers = {i:torch.amp.GradScaler() for i in range(self.hparams.num_tasks)}
-
-        self.learn_called = 0
-        self.__training_mode = True
+    def reset(self, obs):
+        self.ez_agent.reset(obs)
 
     def match_ez_params(self, task_id, tol=1e-6, max_steps=5000):
         """Match HNET params to produce EZ params supervised"""
@@ -230,11 +80,17 @@ class HyperCEZAgent(Agent):
         for hnet_name in self.hnet_component_names:
             print("Matching", hnet_name)
             with torch.no_grad():
-                target_weights = [
-                    p.detach().clone().to(self.device) for p in self.ez_agent.model.__getattr__(hnet_name).parameters()
-                ]
+                if hnet_name == "singular":
+                    target_weights = [p.detach().clone().to(self.device) for p in self.ez_agent.model.parameters()]
+                else:
+                    target_weights = [
+                        p.detach().clone().to(self.device) for p in self.ez_agent.model.__getattr__(hnet_name).parameters()
+                    ]
 
-            opt = torch.optim.Adam(self.hnet_map[hnet_name].theta, lr=1e-3)
+            if hnet_name == "singular":
+                opt = torch.optim.Adam(self.hnet_map.theta, lr=1e-3)
+            else:
+                opt = torch.optim.Adam(self.hnet_map[hnet_name].theta, lr=1e-3)
 
             step = 0
             while True:
@@ -267,185 +123,168 @@ class HyperCEZAgent(Agent):
             del opt
             del target_weights
 
-    def make_ez_state(self, task_id):
-        ez_agent_model_list = self.ez_agent.get_model_list()
-        # forward pass through hypernets and create model state
+    def make_ez_state(self, task_id, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
+        if decision_model == DecisionModel.SELF_PLAY:
+            hnet_map = self.hnet_map_self_play
+            ez_agent_model = self.ez_agent.self_play_model
+        elif decision_model == DecisionModel.LATEST:
+            hnet_map = self.hnet_map_latest
+            ez_agent_model = self.ez_agent.latest_model
+        elif decision_model == DecisionModel.REANALYZE:
+            hnet_map = self.hnet_map_reanalyze
+            ez_agent_model = self.ez_agent.reanalyze_model
+        else:
+            hnet_map = self.hnet_map
+            ez_agent_model = self.ez_agent.model
+        if hnet_map is None:
+            hnet_map = self.hnet_map
+
         full_state = {}
+        if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
+            weights =  hnet_map["singular"](task_id)
+            i = 0
+            for param_name, _ in ez_agent_model.named_parameters():
+                full_state[param_name] = weights[i]
+                i += 1
+            return full_state
 
-        for hnet_name in ez_agent_model_list:
-            if hnet_name in self.hnet_component_names:
-                new_weights = self.hnet_map[hnet_name](task_id)
+        for component_name in self.ez_agent.get_model_list():
+            if component_name not in self.hnet_component_names:
+                full_state[component_name] = dict(ez_agent_model.__getattr__(component_name).named_parameters())
             else:
-                new_weights = [i for i in self.ez_agent.model.__getattr__(hnet_name).parameters()]
-
-            # Check for NaNs or inf in generated weights
-            with torch.no_grad():
-                flat = torch.cat([w.view(-1) for w in new_weights])
-                if not torch.isfinite(flat).all():
-                    print("Non finite generated weights in", hnet_name, "for task", task_id)
-                    print("min", flat.min().item(), "max", flat.max().item())
-                    for hnet_name in self.hnet_component_names:
-                        check_finite(self.hnet_map[hnet_name])
-                    raise RuntimeError("Non finite weights from hypernet")
-
-            for w in new_weights:
-                assert w.requires_grad
-
-            if self.hnet_type == HNetType.HNET_SI:
-                # save grad for calculate si path integral if so
-                si.si_update_optim_step(self.ez_agent.model.__getattr__(hnet_name), new_weights, task_id)
-                for weight in new_weights:
-                    weight.retain_grad()
-
-            model_state = {}
-
-            if hnet_name in self.hnet_component_names:
-                for p in self.hnet_map[hnet_name].parameters():
-                    assert p.requires_grad
-            else:
-                for p in self.ez_agent.model.__getattr__(hnet_name).parameters():
-                    assert p.requires_grad
-
-            for i, param_name in enumerate(
-                    [param_name for param_name, _ in self.ez_agent.model.__getattr__(hnet_name).named_parameters()]
-            ):
-                assert new_weights[i].requires_grad
-                model_state[param_name] = new_weights[i].requires_grad_() if not new_weights[i].requires_grad else \
-                new_weights[i]
-            full_state[hnet_name] = model_state
-
+                state_dict = {}
+                weights = hnet_map[component_name](task_id)
+                i = 0
+                for param_name, _ in ez_agent_model.__getattr__(component_name).named_parameters():
+                    state_dict[param_name] = weights[i]
+                    i += 1
+                    assert not torch.isnan(weights[i]), "NaN in generated weights for " + component_name
+                full_state[component_name] = state_dict
         return full_state
 
-    def _zero_optimizers(self, task_id):
-        ez_agent_model_list = self.ez_agent.get_model_list()
+    def act(self, obs, task_id=0, act_type=ActType.INITIAL, decision_model: DecisionModel = DecisionModel.SELF_PLAY):
+        if task_id not in self.seen_tasks:
+            self.add_task(task_id)
+        state = self.make_ez_state(task_id, decision_model=decision_model)
+        return self.ez_agent.act(obs, task_id=task_id, act_type=act_type, model_state=state)
+
+    def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        return self.act(obs, task_id, act_type)
+
+    def train(self):
+        self.ez_agent.train()
         for hnet_name in self.hnet_component_names:
-            self.theta_optims[hnet_name][task_id].zero_grad()
-            self.emb_optims[hnet_name][task_id].zero_grad()
-        if Counter(ez_agent_model_list) != Counter(self.hnet_component_names):
-            self.ez_agent.optimizer.zero_grad()
+            self.hnet_map[hnet_name].train()
+        self.training_mode = True
 
-    def _backward_task_and_reg(self, task_id, loss_task, full_state, calc_reg=True):
-        loss_task.register_hook(lambda grad: grad * (1. / self.hparams.train["unroll_steps"]))
+    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
+        self.__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
 
-        # backward pass
-        self.scalers[task_id].scale(loss_task).backward(
-            retain_graph=True,
-            create_graph=self.hparams.backprop_dt and calc_reg,
+    def eval(self):
+        [self.hnet_map[hnet_name].eval() for hnet_name in self.hnet_component_names]
+        self.ez_agent.eval()
+
+    def add_task(self, task_id, use_prior=False):
+        """This is equivalent to augment_model in HyperCRL"""
+        assert task_id not in self.seen_tasks, f"Task {task_id} already seen"
+        self.seen_tasks.add(task_id)
+        targets = {}
+        fisher_est_map = {}
+        theta_optimizers = {}
+        emb_optimizers = {}
+        reg_param_map = {}
+        schedulers = {}
+        for component_name in self.hnet_component_names:
+            # Regularizer Targets
+            targets[component_name] = hnet_regularizer.get_current_targets(task_id, self.hnet_map[component_name])
+
+            # add new hypernet task embeddings
+            self.hnet_map[component_name].add_task(task_id, self.hparams.std_normal_temb, use_prior=use_prior)
+
+            # Collect Fisher estimates for the reg computation.
+            fisher_ests = None
+            if self.hparams.ewc_weight_importance and task_id > 0:
+                fisher_ests = []
+                n_W = len(self.hnet_map[component_name].target_shapes)
+                for t in range(task_id):
+                    ff = []
+                    for i in range(n_W):
+                        _, buff_f_name = ewc._ewc_buffer_names(t, i, False)
+                        ff.append(getattr(
+                            self.ez_agent.model.__getattr__(component_name) if component_name != "singular" else self.ez_agent.model,
+                            buff_f_name,
+                            None
+                        ))
+                    fisher_ests.append(ff)
+            fisher_est_map[component_name] = fisher_ests
+
+            regularized_params = list(self.hnet_map[component_name].theta)
+            if task_id > 0 and self.hparams.plastic_prev_tembs:
+                for i in range(task_id):  # for all previous task embeddings
+                    regularized_params.append(self.hnet_map[component_name].get_task_emb(i))
+            theta_optimizers[component_name] = torch.optim.Adam(regularized_params, lr=self.hparams.lr_hyper)
+            emb_optimizers[component_name] = torch.optim.Adam([self.hnet_map[component_name].get_task_emb(task_id)],
+                                             lr=self.hparams.lr_hyper)
+            reg_param_map[component_name] = regularized_params
+            schedulers[theta_optimizers[component_name]] = make_scheduler(theta_optimizers[component_name], self.hparams)
+            schedulers[emb_optimizers[component_name]] = make_scheduler(emb_optimizers[component_name], self.hparams)
+
+        self.cl_training_misc[task_id] = (targets, theta_optimizers, emb_optimizers, reg_param_map, fisher_est_map, schedulers)
+        return targets, theta_optimizers, emb_optimizers, reg_param_map, fisher_est_map, schedulers
+
+    def learn(self, task_id: int, verbose=False):
+        assert self.training_mode, "Agent not in training mode"
+        batch = self.__memory_manager.make_batch(
+            task_id,
+            reanalyze_state=self.make_ez_state(task_id, DecisionModel.REANALYZE)
         )
 
-        # compute regularization term loss and backward
-        if calc_reg:
-            loss_reg = 0.0
-            for hnet_name in self.hnet_component_names:
-                if self.hparams.no_look_ahead:
-                    dTheta = None
-                else:
-                    dTheta = opstep.calc_delta_theta(self.theta_optims[hnet_name][task_id],
-                                                     self.hparams.use_sgd_change, lr=self.hparams.lr_hyper,
-                                                     detach_dt=not self.hparams.backprop_dt)
+        targets, theta_optimizers, emb_optimizers, reg_param_map, fisher_est_map, schedulers = self.cl_training_misc[task_id]
 
-                if self.hparams.plastic_prev_tembs:
-                    dTembs = dTheta[-task_id:]
-                    dTheta = dTheta[:-task_id] if dTheta is not None else None
-                else:
-                    dTembs = None
-
-                loss_reg += hreg.calc_fix_target_reg(self.hnet_map[hnet_name],
-                                                    task_id,
-                                                    targets=self.reg_targets[hnet_name][task_id],
-                                                    dTheta=dTheta,
-                                                    dTembs=dTembs,
-                                                    mnet=self.ez_agent.model.__getattr__(hnet_name),
-                                                    inds_of_out_heads=None,
-                                                    fisher_estimates=self.fisher_ests[hnet_name][task_id],
-                                                    si_omega=self.si_omegas[hnet_name][task_id])
-
-            loss_reg = loss_reg * self.hparams.beta * self.hparams.train["batch_size"]
-            self.scalers[task_id].scale(loss_reg).backward()
-
-        # SI scaling if SI hnet type
-        scale = self.scalers[task_id].get_scale()
-        inv_scale = 1.0 / scale
-        if self.hnet_type == HNetType.HNET_SI:
-            for hnet_name in self.hnet_component_names:
-                weights = [v for _, v in full_state[hnet_name].items()]
-                for w in weights:
-                    if w.grad is not None:
-                        w.grad.mul_(inv_scale)
-
-                torch.nn.utils.clip_grad_norm_(weights, self.hparams.grad_max_norm)
-                si.si_update_grad(self.ez_agent.model.__getattr__(hnet_name), weights, task_id)
-
-    def _unscale_optimizers(self, task_id):
-        for hnet_name in self.hnet_component_names:
-            self.scalers[task_id].unscale_(self.emb_optims[hnet_name][task_id])
-            self.scalers[task_id].unscale_(self.theta_optims[hnet_name][task_id])
-
+        # Adjust Learning Rates
+        for component_name in self.hnet_component_names:
+            adjust_lr(
+                self.hparams,
+                theta_optimizers[component_name],
+                self.__memory_manager.get_trained_steps(task_id),
+                schedulers[theta_optimizers[component_name]]
+            )
+            adjust_lr(
+                self.hparams,
+                emb_optimizers[component_name],
+                self.__memory_manager.get_trained_steps(task_id),
+                schedulers[emb_optimizers[component_name]]
+            )
         if Counter(self.ez_agent.get_model_list()) != Counter(self.hnet_component_names):
-            self.scalers[task_id].unscale_(self.ez_agent.optimizer)
+            self.ez_agent.adjust_lr(
+                self.ez_agent.optimizer,
+                self.__memory_manager.get_trained_steps(task_id),
+                self.ez_agent.scheduler
+            )
 
-    def _clip_and_step(self, task_id):
-        for hnet_name in self.hnet_component_names:
-            # task embedding optimizer clip and step
-            torch.nn.utils.clip_grad_norm_(self.hnet_map[hnet_name].get_task_emb(task_id), self.hparams.grad_max_norm)
-            self.scalers[task_id].step(self.emb_optims[hnet_name][task_id])
+        if self.__memory_manager.get_trained_steps() % 30 == 0:
+            self.hnet_map_latest = copy.deepcopy(self.hnet_map)
+            self.ez_agent.latest_model = copy.deepcopy(self.ez_agent.model)
 
-            # hypernet_theta optimizer clip and step
-            torch.nn.utils.clip_grad_norm_(self.regularized_params[hnet_name][task_id], self.hparams.grad_max_norm)
-            self.scalers[task_id].step(self.theta_optims[hnet_name][task_id])
+        if self.__memory_manager.get_trained_steps() % self.hparams.train["self_play_update_interval"] == 0:
+            self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
+            self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
 
-        if Counter(self.ez_agent.get_model_list()) != Counter(self.hnet_component_names):
-            torch.nn.utils.clip_grad_norm_(self.ez_agent.model.parameters(), self.hparams.train["max_grad_norm"])
-            self.scalers[task_id].step(self.ez_agent.optimizer)
+        if self.__memory_manager.get_trained_steps() % self.hparams.train["reanalyze_update_interval"] == 0:
+            self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
 
 
-    def learn(self, task_id, verbose=False):
-        assert self.__training_mode
-
-        # create full state using hypernets
-        full_state = self.make_ez_state(task_id)
-
-        # update internal ez_agent model copies
-        self.copy_ez_params(task_id)
-
-        if self.__memory_manager.get_trained_steps(task_id) % 30 == 0:
-            self.latest_state = deep_copy_full_state(full_state)
-
-        if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["self_play_update_interval"] == 0:
-            self.self_play_state = deep_copy_full_state(full_state)
-
-        if self.__memory_manager.get_trained_steps(task_id) % self.hparams.train["reanalyze_update_interval"] == 0:
-            self.reanalyze_state = deep_copy_full_state(full_state)
-
-        batch = self.__memory_manager.make_batch(task_id, self.reanalyze_state)
-
-        # ready optimizers
-        self._zero_optimizers(task_id)
-
-        # calculate loss
-        loss_task, _ = self.ez_agent.calc_loss(
+        weighted_loss, log_data = self.ez_agent.calc_loss(
             self.ez_agent.model,
             batch,
-            self.__memory_manager.get_item('replay_buffer_map', task_id),
-            self.ez_agent.trained_steps,
-            model_state=full_state
+            self.__memory_manager.get_item("replay_buffer_map", task_id),
+            self.__memory_manager.get_trained_steps(task_id),
         )
 
-        # backward (task + reg)
-        self._backward_task_and_reg(task_id, loss_task, full_state, task_id > 0 and self.hparams.beta > 0)
-
-        # unscale optimizers
-        self._unscale_optimizers(task_id)
-
-        # clip and step
-        self._clip_and_step(task_id)
-
-        # scalar update and bookkeeping
-        self.scalers[task_id].update()
-        self.learn_called += 1
+        self.ez_agent.update_weights(weighted_loss, self.ez_agent.model, self.ez_agent.optimizer, self.ez_agent.scaler)
         self.__memory_manager.increment_trained_steps(task_id)
 
-        return loss_task.item()
 
-    def reset(self, obs):
-        self.ez_agent.reset(obs)
+
+

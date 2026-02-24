@@ -599,6 +599,7 @@ class EZAgent(Agent):
         self.reanalyze_model = copy.deepcopy(self.model)
         self.latest_model = copy.deepcopy(self.model)
         self.batch_storage = FIFOQueue()
+        self.model.train()
 
         if self.hparams.augmentation and self.agent_type == AgentType.DMC_IMAGE or self.agent_type == AgentType.ATARI:
             self.transforms = Transforms(self.hparams.augmentation, image_shape=(self.obs_shape[1], self.obs_shape[2]))
@@ -1254,7 +1255,8 @@ class EZAgent(Agent):
                     value_lst,
                     policy_lst,
                     use_gumble_noise=True,
-                    temperature=temperature
+                    temperature=temperature,
+                    model_state=model_state
                 )
             else:
                 r_values, r_policies, best_actions, _ = mcts.search_ori_mcts(
@@ -1265,7 +1267,8 @@ class EZAgent(Agent):
                     policy_lst,
                     use_noise=True,
                     temperature=temperature,
-                    is_reanalyze=True
+                    is_reanalyze=True,
+                    model_state=model_state
                 )
             sampled_actions = best_actions
             search_best_indexes = best_actions
@@ -1277,7 +1280,8 @@ class EZAgent(Agent):
                 state_lst,
                 value_lst,
                 policy_lst,
-                temperature=temperature
+                temperature=temperature,
+                model_state=model_state
             )
 
         # concat policy
@@ -1589,7 +1593,8 @@ class EZAgent(Agent):
         return weighted_loss, (loss_data, other_scalar, other_distribution)
 
     def update_weights(self, weighted_loss, model, optimizer, scaler, target_model=None):
-        target_model.eval()
+        if target_model is not None:
+            target_model.eval()
         # backward
         unroll_steps = self.hparams.train["unroll_steps"]
         gradient_scale = 1. / unroll_steps

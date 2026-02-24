@@ -30,3 +30,48 @@ def deep_copy_full_state(obj):
 
     # Primitives
     return obj
+
+def make_scheduler(optimizer, hparams):
+    if hparams.optimizer["lr_decay_type"] == 'cosine':
+        max_steps = hparams.train["training_steps"] - int(
+            hparams.train["training_steps"] * hparams.optimizer["lr_warm_up"]
+        )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=max_steps * 3, eta_min=0
+        )
+    elif hparams.optimizer["lr_decay_type"] == 'full_cosine':
+        max_steps = hparams.train["training_steps"] - int(
+            hparams.train["training_steps"] * hparams.optimizer["lr_warm_up"]
+        )
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=max_steps // 2, eta_min=0
+        )
+    else:
+        scheduler = None
+
+    return scheduler
+
+
+def adjust_lr(hparams, optimizer, step_count, scheduler):
+    lr_warm_step = int(hparams.train["training_steps"] * hparams.optimizer["lr_warm_up"])
+    optimize_config = hparams.optimizer
+
+    # adjust learning rate, step lr every lr_decay_steps
+    if step_count < lr_warm_step:
+        lr = optimize_config["lr"] * step_count / lr_warm_step
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+    else:
+        if hparams.optimizer["lr_decay_type"] == 'cosine':
+            if scheduler is not None:
+                scheduler.step()
+            lr = scheduler.get_last_lr()[0] # return a list
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+        else:
+            lr = optimize_config["lr"] * optimize_config["lr_decay_rate"] ** (
+                        (step_count - lr_warm_step) // optimize_config["lr_decay_steps"])
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+
+    return lr

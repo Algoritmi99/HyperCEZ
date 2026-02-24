@@ -149,11 +149,11 @@ class ChunkedHyperNetworkHandler(nn.Module, CLHyperNetInterface):
 
         self._is_properly_setup()
 
-    def add_task(self, task_id, std_normal_temb):
+    def add_task(self, task_id, std_normal_temb, use_prior=False):
         if task_id < self._num_tasks:
             return
         self._num_tasks += 1
-        self._hypernet.add_task(task_id, std_normal_temb)
+        self._hypernet.add_task(task_id, std_normal_temb, use_prior=use_prior)
 
     @property
     def chunk_embeddings(self):

@@ -218,25 +218,43 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
 
         self._is_properly_setup()
 
-    def add_task(self, task_id, std_normal_temb):
+    def add_task(self, task_id, std_normal_temb, use_prior=False):
         if task_id < self._num_tasks:
             return
+
         self._num_tasks += 1
-        self._task_embs.append(nn.Parameter(data=torch.Tensor(self._te_dim),
-                                            requires_grad=True))
-        #torch.nn.init.normal_(self._task_embs[-1], mean=0., std=1.)
-        
+
+        # Create new embedding parameter
+        new_emb = nn.Parameter(
+            data=torch.empty(self._te_dim),
+            requires_grad=True
+        )
+
+        if use_prior and len(self._task_embs) > 0:
+            with torch.no_grad():
+                # Copy previous embedding
+                new_emb.copy_(self._task_embs[-1].data)
+
+                # Add Gaussian noise
+                noise = torch.empty_like(new_emb)
+                torch.nn.init.normal_(noise, mean=0., std=std_normal_temb)
+                new_emb.add_(noise)
+        else:
+            # Original behavior
+            torch.nn.init.normal_(new_emb, mean=0., std=std_normal_temb)
+
+        self._task_embs.append(new_emb)
+
+        # Recompute bookkeeping
         ntheta = MainNetInterface.shapes_to_num_weights(self._theta_shapes)
         ntembs = int(np.sum([t.numel() for t in self._task_embs])) \
-                if not self._no_te_embs else 0
+            if not self._no_te_embs else 0
+
         self._num_weights = ntheta + ntembs
 
         self._num_outputs = MainNetInterface.shapes_to_num_weights(
             self.target_shapes
         )
-        
-        # The task embeddings are initialized differently.
-        torch.nn.init.normal_(self._task_embs[-1], mean=0., std=std_normal_temb)
 
     def _create_feedback_matrix(self, target_shapes, target_net_out_dim, 
                                 random_scale_feedback_matrix):
