@@ -158,8 +158,8 @@ class HyperCEZAgent(Agent):
                 i = 0
                 for param_name, _ in ez_agent_model.__getattr__(component_name).named_parameters():
                     state_dict[param_name] = weights[i]
+                    assert not torch.isnan(weights[i]).any(), "NaN in generated weights for " + component_name
                     i += 1
-                    assert not torch.isnan(weights[i]), "NaN in generated weights for " + component_name
                 full_state[component_name] = state_dict
         return full_state
 
