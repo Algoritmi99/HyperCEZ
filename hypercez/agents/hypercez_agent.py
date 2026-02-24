@@ -158,6 +158,7 @@ class HyperCEZAgent(Agent):
                 i = 0
                 for param_name, _ in ez_agent_model.__getattr__(component_name).named_parameters():
                     state_dict[param_name] = weights[i]
+                    assert weights[i].requires_grad
                     assert not torch.isnan(weights[i]).any(), "NaN in generated weights for " + component_name
                     i += 1
                 full_state[component_name] = state_dict
@@ -290,6 +291,7 @@ class HyperCEZAgent(Agent):
             batch,
             self.__memory_manager.get_item("replay_buffer_map", task_id),
             self.__memory_manager.get_trained_steps(task_id),
+            model_state=self.make_ez_state(task_id, DecisionModel.CURRENT)
         )
 
         self.update_weights(weighted_loss, task_id)
@@ -322,7 +324,6 @@ class HyperCEZAgent(Agent):
         # unscale gradients
         scaler.unscale_(self.ez_agent.optimizer)
         for component_name in self.hnet_component_names:
-            # scaler.unscale_(theta_optimizers[component_name])
             scaler.unscale_(emb_optimizers[component_name])
 
         # clip gradients on embedding params and ezv2 params
@@ -336,7 +337,6 @@ class HyperCEZAgent(Agent):
         scaler.step(self.ez_agent.optimizer)
         for component_name in self.hnet_component_names:
             scaler.step(emb_optimizers[component_name])
-
 
         # Compute Regularization loss
         if task_id > 0 and self.hparams.beta > 0:
