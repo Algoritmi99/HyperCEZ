@@ -36,6 +36,7 @@ def main():
         # "projection_model",
         # "projection_head_model"
         # "all"
+        # "default"
     )
 
     hyper_cez_agent.init_model()
@@ -55,7 +56,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        # evaluate=True,
+        evaluate=True,
         # verbose=True,
         agent_name="hypercez_all_agent_initSafe"
     )
