@@ -3,7 +3,7 @@ import torch
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
-from hypercez.agents.hypercez_agent import HyperCEZAgent, AgentCtrlType, HNetType
+from hypercez.agents.hypercez_agent import HyperCEZAgent
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.trainer import Trainer
 from hypercez.util.plotter import Plotter
@@ -29,26 +29,23 @@ def main():
     hyper_cez_agent = HyperCEZAgent(
         hparams,
         ez_agent,
-        HNetType.HNET,
-        None,
-        AgentCtrlType.CONTINUOUS,
         "representation_model",
         "dynamics_model",
         "reward_prediction_model",
         "value_policy_model",
-        "projection_model",
-        "projection_head_model"
+        # "projection_model",
+        # "projection_head_model"
         # "all"
     )
 
     hyper_cez_agent.init_model()
 
-    cl_env_loader = CLEnvLoader(hparams.env)
+    cl_env_loader = CLEnvLoader(hparams.env, seed=42)
     for i in range(hparams.num_tasks):
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_t1_test' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
