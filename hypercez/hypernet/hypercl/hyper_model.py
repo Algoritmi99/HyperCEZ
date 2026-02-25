@@ -392,7 +392,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
             task_emb = self._task_embs[task_id]
 
         if self.training and self._temb_std != -1:
-            task_emb.add(torch.randn_like(task_emb) * self._temb_std)
+            task_emb = task_emb + torch.randn_like(task_emb) * self._temb_std
 
         # Concatenate additional embeddings to task embedding, if given.
         if self.requires_ext_input and ext_inputs is None:
@@ -416,11 +416,11 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
 
         if self._noise_dim != -1:
             if self.training:
-                eps = torch.randn((batch_size, self._noise_dim))
+                eps = torch.randn((batch_size, self._noise_dim), device=h.device, dtype=h.dtype)
             else:
-                eps = torch.zeros((batch_size, self._noise_dim))
-            if h.is_cuda:
-                eps = eps.to(h.get_device())
+                eps = torch.zeros((batch_size, self._noise_dim), device=h.device, dtype=h.dtype)
+            # if h.is_cuda:
+            #     eps = eps.to(h.get_device())
             h = torch.cat([h, eps], dim=1)
 
         # Hidden activations.
@@ -433,6 +433,8 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
                 h = self._act_fn(h)
             if self._dropout is not None:
                 h = self._dropout(h)
+
+        h = F.layer_norm(h, (h.shape[-1:]))
         outputs = []
         j = 0
         for i in range(len(self._hidden_dims), len(self._theta_shapes),
@@ -442,6 +444,14 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
                 b = weights[i+1]
             W = F.linear(h, weights[i], bias=b)
             W = W.view(batch_size, *self.target_shapes[j])
+
+            # Debug metrics
+            if not torch.isfinite(W).all():
+                raise RuntimeError("Non-finite generated weight tensor")
+            # Catch "finite but insane"
+            if W.abs().max().item() > 1e3:
+                print("WARNING: huge generated weights for target", j, W.abs().max().item())
+
             if squeeze:
                 W = torch.squeeze(W, dim=0)
             if self._shifts is not None: # FIXME temporary test!

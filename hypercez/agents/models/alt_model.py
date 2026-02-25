@@ -403,22 +403,65 @@ class ValuePolicyNetwork(nn.Module):
                 except:
                     pass
 
+    # def forward(self, x):
+    #     value = self.val_resblock(x)
+    #     value = self.val_ln(value)
+    #     values = []
+    #     for val_net in self.val_nets:
+    #         values.append(val_net(value))
+    #     values = torch.stack(values)
+    #
+    #     policy = self.pi_resblock(x)
+    #     policy = self.pi_ln(policy)
+    #     policy = self.pi_net(policy)
+    #
+    #     action_space_size = policy.shape[-1] // 2
+    #     if self.policy_distr == 'squashed_gaussian':
+    #         policy[:, :action_space_size] = 5 * torch.tanh(policy[:, :action_space_size] / 5)  # soft clamp mu
+    #         policy[:, action_space_size:] = torch.nn.functional.softplus(
+    #             policy[:, action_space_size:] + self.init_std) + self.min_std  # same as Dreamer-v3
+    #
+    #     return values, policy
+
     def forward(self, x):
-        value = self.val_resblock(x)
-        value = self.val_ln(value)
-        values = []
-        for val_net in self.val_nets:
-            values.append(val_net(value))
-        values = torch.stack(values)
+        # ----- Value branch -----
+        v = self.val_resblock(x)
+        v = self.val_ln(v)
+        values = torch.stack([val_net(v) for val_net in self.val_nets], dim=0)
 
-        policy = self.pi_resblock(x)
-        policy = self.pi_ln(policy)
-        policy = self.pi_net(policy)
+        # ----- Policy branch -----
+        h = self.pi_resblock(x)
+        h = self.pi_ln(h)
+        out = self.pi_net(h)  # shape: [B, 2 * action_dim]
 
-        action_space_size = policy.shape[-1] // 2
-        if self.policy_distr == 'squashed_gaussian':
-            policy[:, :action_space_size] = 5 * torch.tanh(policy[:, :action_space_size] / 5)  # soft clamp mu
-            policy[:, action_space_size:] = torch.nn.functional.softplus(
-                policy[:, action_space_size:] + self.init_std) + self.min_std  # same as Dreamer-v3
+        action_dim = out.shape[-1] // 2
+        mu_raw = out[..., :action_dim]
+        std_raw = out[..., action_dim:]
+
+        if self.policy_distr == "squashed_gaussian":
+            mu = 5.0 * torch.tanh(mu_raw / 5.0)
+
+            # Std parameterization (DreamerV3) + hard caps for numerical safety
+            # - softplus ensures positivity
+            # - +min_std ensures strictly > 0
+            # - clamp max prevents mean + std*eps overflow during sampling
+            std = torch.nn.functional.softplus(std_raw + self.init_std) + self.min_std
+
+            # Choose a max that matches your environment scaling.
+            # 5, 10, or 20 are typical. Start with 10.
+            std = torch.clamp(std, min=self.min_std, max=10.0)
+
+            policy = torch.cat([mu, std], dim=-1)
+
+            # Optional early tripwires (comment out once stable)
+            if not torch.isfinite(policy).all():
+                raise RuntimeError("Non-finite policy output (mu/std) in forward()")
+            if std.max().item() >= 10.0:
+                # This tells you the model is saturating the std cap often.
+                # Log it to see if hypernet is driving it.
+                print("WARNING: std cap saturation in forward()!")
+
+        else:
+            policy = out
 
         return values, policy

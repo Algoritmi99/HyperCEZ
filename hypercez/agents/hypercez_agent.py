@@ -3,7 +3,7 @@ from collections import Counter
 
 import torch
 
-from hypercez import check_finite, make_scheduler, adjust_lr
+from hypercez import check_finite, make_scheduler, adjust_lr, has_nan
 from hypercez.agents import EZAgent
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.agents.ez_agent import DecisionModel
@@ -239,10 +239,16 @@ class HyperCEZAgent(Agent):
 
     def learn(self, task_id: int, verbose=False):
         assert self.training_mode, "Agent not in training mode"
-        batch = self.__memory_manager.make_batch(
-            task_id,
-            reanalyze_state=self.make_ez_state(task_id, DecisionModel.REANALYZE)
-        )
+        state_ = self.make_ez_state(task_id, DecisionModel.REANALYZE)
+        try:
+            batch = self.__memory_manager.make_batch(
+                task_id,
+                reanalyze_state=state_
+            )
+        except Exception as e:
+            nan_found, componenent = has_nan(state_)
+            print(f"Error in state: {nan_found} in {componenent}")
+            raise e
 
         (targets,
          theta_optimizers,

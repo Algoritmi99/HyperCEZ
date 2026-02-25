@@ -75,3 +75,10 @@ def adjust_lr(hparams, optimizer, step_count, scheduler):
                 param_group['lr'] = lr
 
     return lr
+
+def has_nan(model_state):
+    for component, state in model_state.items():
+        for k, v in state.items():
+            if torch.isnan(v).any():
+                return True, component
+    return False, None
