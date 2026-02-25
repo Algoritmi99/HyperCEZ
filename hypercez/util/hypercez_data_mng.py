@@ -19,22 +19,22 @@ class HyperCEZDataManager:
 
     def update_mem_maps(self):
         assert hasattr(self.ez_agent, "mem_id")
-        self.collector_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.collector)
-        self.traj_pool_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.traj_pool)
-        self.replay_buffer_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.replay_buffer)
-        self.batch_storage_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.batch_storage)
-        self.prev_traj_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.prev_traj)
-        self.beta_schedule_map[self.ez_agent.mem_id] = copy.deepcopy(self.ez_agent.beta_schedule)
+        self.collector_map[self.ez_agent.mem_id] = self.ez_agent.collector
+        self.traj_pool_map[self.ez_agent.mem_id] = self.ez_agent.traj_pool
+        self.replay_buffer_map[self.ez_agent.mem_id] = self.ez_agent.replay_buffer
+        self.batch_storage_map[self.ez_agent.mem_id] = self.ez_agent.batch_storage
+        self.prev_traj_map[self.ez_agent.mem_id] = self.ez_agent.prev_traj
+        self.beta_schedule_map[self.ez_agent.mem_id] = self.ez_agent.beta_schedule
         self.trained_steps_map[self.ez_agent.mem_id] = self.ez_agent.trained_steps
 
     def recover_memory(self, task_id):
         assert task_id in self.collector_map, f"No memory found for task id {task_id}"
-        self.ez_agent.collector = copy.deepcopy(self.collector_map[task_id])
-        self.ez_agent.traj_pool = copy.deepcopy(self.traj_pool_map[task_id])
-        self.ez_agent.replay_buffer = copy.deepcopy(self.replay_buffer_map[task_id])
-        self.ez_agent.batch_storage = copy.deepcopy(self.batch_storage_map[task_id])
-        self.ez_agent.prev_traj = copy.deepcopy(self.prev_traj_map[task_id])
-        self.ez_agent.beta_schedule = copy.deepcopy(self.beta_schedule_map[task_id])
+        self.ez_agent.collector = (self.collector_map[task_id])
+        self.ez_agent.traj_pool = (self.traj_pool_map[task_id])
+        self.ez_agent.replay_buffer = (self.replay_buffer_map[task_id])
+        self.ez_agent.batch_storage = (self.batch_storage_map[task_id])
+        self.ez_agent.prev_traj = (self.prev_traj_map[task_id])
+        self.ez_agent.beta_schedule = (self.beta_schedule_map[task_id])
         self.ez_agent.trained_steps = self.trained_steps_map[task_id]
         self.ez_agent.mem_id = task_id
 

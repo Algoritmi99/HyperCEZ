@@ -434,7 +434,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
             if self._dropout is not None:
                 h = self._dropout(h)
 
-        h = F.layer_norm(h, (h.shape[-1:]))
+        h = F.layer_norm(h, (h.shape[-1],))
         outputs = []
         j = 0
         for i in range(len(self._hidden_dims), len(self._theta_shapes),
