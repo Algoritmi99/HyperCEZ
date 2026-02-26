@@ -82,3 +82,11 @@ def has_nan(model_state):
             if torch.isnan(v).any():
                 return True, component
     return False, None
+
+def clone_ez_state(ez_agent):
+    out_state = {}
+    for component_name in ez_agent.get_model_list():
+        out_state[component_name] = {}
+        for param_name, param in ez_agent.model.__getattr__(component_name).named_parameters():
+            out_state[component_name][param_name] = param.clone().detach()
+    return out_state

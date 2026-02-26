@@ -3,6 +3,7 @@ import torch
 from hypercez import Hparams
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import AgentType
+from hypercez.agents.hypercez_delta_agent import HyperCEZDeltaAgent
 from hypercez.agents.hypercez_agent import HyperCEZAgent
 from hypercez.envs.cl_env import CLEnvLoader
 from hypercez.trainer import Trainer
@@ -26,7 +27,7 @@ def main():
     )
     ez_agent.init_model()
 
-    hyper_cez_agent = HyperCEZAgent(
+    hyper_cez_agent = HyperCEZDeltaAgent(
         hparams,
         ez_agent,
         "representation_model",

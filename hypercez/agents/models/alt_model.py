@@ -453,13 +453,16 @@ class ValuePolicyNetwork(nn.Module):
 
             policy = torch.cat([mu, std], dim=-1)
 
-            # Optional early tripwires (comment out once stable)
+            # Optional early tripwires
             if not torch.isfinite(policy).all():
+                print("max encountered std:", std.max().item())
+                print("min encountered std:", std.min().item())
+                print("mu:", mu)
                 raise RuntimeError("Non-finite policy output (mu/std) in forward()")
             if std.max().item() >= 10.0:
                 # This tells you the model is saturating the std cap often.
                 # Log it to see if hypernet is driving it.
-                print("WARNING: std cap saturation in forward()!")
+                print("WARNING: std cap saturation in forward()!", std.max().item())
 
         else:
             policy = out
