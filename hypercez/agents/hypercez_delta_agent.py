@@ -20,7 +20,6 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.__frozen_ez_state = None
         self.alphas = None
         self.alpha_max = 0.2
-        self.layerNorms = None
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
