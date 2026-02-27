@@ -43,6 +43,13 @@ class HyperCEZAgent(Agent):
         self.seen_tasks:set[int] = set()
         self.cl_training_misc = {}
         self._HyperCEZAgent__memory_manager = HyperCEZDataManager(self.ez_agent)
+        self.layerNorms = set()
+        for component_name in self.hnet_component_names:
+            for module_name, module in self.ez_agent.model.__getattr__(component_name).named_modules():
+                if isinstance(module, torch.nn.LayerNorm):
+                    for param_name, param in module.named_parameters():
+                        full_name = f"{module_name}.{param_name}" if module_name else param_name
+                        self.layerNorms.add(full_name)
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
@@ -156,10 +163,13 @@ class HyperCEZAgent(Agent):
                 state_dict = {}
                 weights = hnet_map[component_name](task_id)
                 i = 0
-                for param_name, _ in ez_agent_model.__getattr__(component_name).named_parameters():
-                    state_dict[param_name] = weights[i]
-                    assert weights[i].requires_grad
-                    assert not torch.isnan(weights[i]).any(), "NaN in generated weights for " + component_name
+                for param_name, orig_param in ez_agent_model.__getattr__(component_name).named_parameters():
+                    if param_name in self.layerNorms:
+                        state_dict[param_name] = orig_param
+                    else:
+                        state_dict[param_name] = weights[i]
+                        assert weights[i].requires_grad
+                        assert not torch.isnan(weights[i]).any(), "NaN in generated weights for " + component_name
                     i += 1
                 full_state[component_name] = state_dict
         return full_state

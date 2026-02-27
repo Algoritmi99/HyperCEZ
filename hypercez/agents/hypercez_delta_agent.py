@@ -19,6 +19,8 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         super().__init__(hparams, ez_agent, *hnet_component_names)
         self.__frozen_ez_state = None
         self.alphas = None
+        self.alpha_max = 0.2
+        self.layerNorms = None
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
@@ -77,13 +79,18 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 state_dict = {}
                 d_weights = hnet_map[component_name](task_id)
                 i = 0
-                for param_name, _ in ez_agent_model.__getattr__(component_name).named_parameters():
-                    state_dict[param_name] = (self.__frozen_ez_state[component_name][param_name] +
-                                              self.alphas[component_name] * d_weights[i])
-                    assert d_weights[i].requires_grad
-                    assert not torch.isnan(d_weights[i]).any(), "NaN in generated weights for " + component_name
+                for param_name, orig_param in ez_agent_model.__getattr__(component_name).named_parameters():
+                    if param_name in self.layerNorms:
+                        state_dict[param_name] = orig_param
+                    else:
+                        effective_alpha = self.alpha_max * torch.tanh(self.alphas[component_name])
+                        state_dict[param_name] = (self.__frozen_ez_state[component_name][param_name] +
+                                                  effective_alpha * d_weights[i])
+                        assert d_weights[i].requires_grad
+                        assert not torch.isnan(d_weights[i]).any(), "NaN in generated weights for " + component_name
                     i += 1
                 full_state[component_name] = state_dict
+
         return full_state
 
     def add_task(self, task_id, use_prior=False):
