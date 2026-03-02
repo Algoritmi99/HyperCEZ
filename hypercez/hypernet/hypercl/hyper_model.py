@@ -227,8 +227,10 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
         # Create new embedding parameter
         new_emb = nn.Parameter(
             data=torch.empty(self._te_dim),
-            requires_grad=True
+            requires_grad=True,
         )
+        if task_id > 0:
+            new_emb = new_emb.to(self._task_embs[0].device)
 
         if use_prior and len(self._task_embs) > 0:
             with torch.no_grad():

@@ -236,10 +236,10 @@ def adam_step(optimizer, detach_dp=True):
     assert (isinstance(optimizer, optim.Adam))
 
     d_ps = []
-
     for group in optimizer.param_groups:
         for p in group['params']:
             if p.grad is None:
+                d_ps.append(0)
                 continue
 
             if detach_dp:
