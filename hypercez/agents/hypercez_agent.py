@@ -214,6 +214,12 @@ class HyperCEZAgent(Agent):
             # add new hypernet task embeddings
             self.hnet_map[component_name].add_task(task_id, self.hparams.std_normal_temb, use_prior=use_prior)
 
+            # delayed maps need to be updated after each added task
+            if task_id > 0:
+                self.hnet_map_latest = copy.deepcopy(self.hnet_map)
+                self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
+                self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+
             # Collect Fisher estimates for the reg computation.
             fisher_ests = None
             if self.hparams.ewc_weight_importance and task_id > 0:

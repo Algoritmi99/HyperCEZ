@@ -111,6 +111,12 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
             # add new hypernet task embeddings
             self.hnet_map[component_name].add_task(task_id, self.hparams.std_normal_temb, use_prior=use_prior)
 
+            # delayed maps need to be updated after each added task
+            if task_id > 0:
+                self.hnet_map_latest = copy.deepcopy(self.hnet_map)
+                self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
+                self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+
             # Collect Fisher estimates for the reg computation.
             fisher_ests = None
             if self.hparams.ewc_weight_importance and task_id > 0:
@@ -142,6 +148,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.cl_training_misc[task_id] = (
             targets, theta_optimizers, emb_optimizers, alpha_optimizer, reg_param_map, fisher_est_map, schedulers, scaler
         )
+        print(f"Added task {task_id}")
         return targets, theta_optimizers, emb_optimizers, alpha_optimizer, reg_param_map, fisher_est_map, schedulers, scaler
 
     def learn(self, task_id: int, verbose=False):
