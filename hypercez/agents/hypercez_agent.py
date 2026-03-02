@@ -42,7 +42,7 @@ class HyperCEZAgent(Agent):
         self.schedulers = None
         self.seen_tasks:set[int] = set()
         self.cl_training_misc = {}
-        self._HyperCEZAgent__memory_manager = HyperCEZDataManager(self.ez_agent)
+        self.__memory_manager = HyperCEZDataManager(self.ez_agent)
         self.layerNorms = set()
         for component_name in self.hnet_component_names:
             for module_name, module in self.ez_agent.model.__getattr__(component_name).named_modules():
@@ -71,10 +71,10 @@ class HyperCEZAgent(Agent):
             self.hnet_map[hnet_name].to(device)
 
     def is_ready_for_training(self, task_id=None, pbar=None):
-        return self._HyperCEZAgent__memory_manager.is_ready_for_training(task_id=task_id, pbar=pbar)
+        return self.__memory_manager.is_ready_for_training(task_id=task_id, pbar=pbar)
 
     def done_training(self, task_id=None, pbar=None):
-        return self._HyperCEZAgent__memory_manager.done_training(task_id=task_id, pbar=pbar)
+        return self.__memory_manager.done_training(task_id=task_id, pbar=pbar)
 
     def reset(self, obs):
         self.ez_agent.reset(obs)
@@ -190,7 +190,7 @@ class HyperCEZAgent(Agent):
         self.training_mode = True
 
     def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
-        self._HyperCEZAgent__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
+        self.__memory_manager.collect(x_t, u_t, reward, x_tt, task_id, done=done)
 
     def eval(self):
         [self.hnet_map[hnet_name].eval() for hnet_name in self.hnet_component_names]
@@ -257,7 +257,7 @@ class HyperCEZAgent(Agent):
         assert self.training_mode, "Agent not in training mode"
         state_ = self.make_ez_state(task_id, DecisionModel.REANALYZE)
         try:
-            batch = self._HyperCEZAgent__memory_manager.make_batch(
+            batch = self.__memory_manager.make_batch(
                 task_id,
                 reanalyze_state=state_
             )
@@ -279,31 +279,31 @@ class HyperCEZAgent(Agent):
             adjust_lr(
                 self.hparams,
                 theta_optimizers[component_name],
-                self._HyperCEZAgent__memory_manager.get_trained_steps(task_id),
+                self.__memory_manager.get_trained_steps(task_id),
                 schedulers[theta_optimizers[component_name]]
             )
             adjust_lr(
                 self.hparams,
                 emb_optimizers[component_name],
-                self._HyperCEZAgent__memory_manager.get_trained_steps(task_id),
+                self.__memory_manager.get_trained_steps(task_id),
                 schedulers[emb_optimizers[component_name]]
             )
         if Counter(self.ez_agent.get_model_list()) != Counter(self.hnet_component_names):
             self.ez_agent.adjust_lr(
                 self.ez_agent.optimizer,
-                self._HyperCEZAgent__memory_manager.get_trained_steps(task_id),
+                self.__memory_manager.get_trained_steps(task_id),
                 self.ez_agent.scheduler
             )
 
-        if self._HyperCEZAgent__memory_manager.get_trained_steps() % 30 == 0:
+        if self.__memory_manager.get_trained_steps() % 30 == 0:
             self.hnet_map_latest = copy.deepcopy(self.hnet_map)
             self.ez_agent.latest_model = copy.deepcopy(self.ez_agent.model)
 
-        if self._HyperCEZAgent__memory_manager.get_trained_steps() % self.hparams.train["self_play_update_interval"] == 0:
+        if self.__memory_manager.get_trained_steps() % self.hparams.train["self_play_update_interval"] == 0:
             self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
             self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
 
-        if self._HyperCEZAgent__memory_manager.get_trained_steps() % self.hparams.train["reanalyze_update_interval"] == 0:
+        if self.__memory_manager.get_trained_steps() % self.hparams.train["reanalyze_update_interval"] == 0:
             self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
             self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
 
@@ -311,13 +311,13 @@ class HyperCEZAgent(Agent):
         weighted_loss, log_data = self.ez_agent.calc_loss(
             self.ez_agent.model,
             batch,
-            self._HyperCEZAgent__memory_manager.get_item("replay_buffer_map", task_id),
-            self._HyperCEZAgent__memory_manager.get_trained_steps(task_id),
+            self.__memory_manager.get_item("replay_buffer_map", task_id),
+            self.__memory_manager.get_trained_steps(task_id),
             model_state=self.make_ez_state(task_id, DecisionModel.CURRENT)
         )
 
         self.update_weights(weighted_loss, task_id)
-        self._HyperCEZAgent__memory_manager.increment_trained_steps(task_id)
+        self.__memory_manager.increment_trained_steps(task_id)
 
     def update_weights(self, weighted_loss, task_id: int):
         (targets,

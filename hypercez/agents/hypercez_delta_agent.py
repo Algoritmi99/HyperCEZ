@@ -148,7 +148,6 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.cl_training_misc[task_id] = (
             targets, theta_optimizers, emb_optimizers, alpha_optimizer, reg_param_map, fisher_est_map, schedulers, scaler
         )
-        print(f"Added task {task_id}")
         return targets, theta_optimizers, emb_optimizers, alpha_optimizer, reg_param_map, fisher_est_map, schedulers, scaler
 
     def learn(self, task_id: int, verbose=False):

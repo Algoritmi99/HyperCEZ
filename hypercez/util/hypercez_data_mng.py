@@ -25,7 +25,6 @@ class HyperCEZDataManager:
         self.batch_storage_map[self.ez_agent.mem_id] = (self.ez_agent.batch_storage)
         self.prev_traj_map[self.ez_agent.mem_id] = (self.ez_agent.prev_traj)
         self.beta_schedule_map[self.ez_agent.mem_id] = (self.ez_agent.beta_schedule)
-        self.trained_steps_map[self.ez_agent.mem_id] = self.ez_agent.trained_steps
 
     def recover_memory(self, task_id):
         assert task_id in self.collector_map, f"No memory found for task id {task_id}"
