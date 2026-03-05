@@ -312,3 +312,14 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
             self.ez_agent.model.value_policy_model.reset_noise()
 
         return [scaler]
+
+    @classmethod
+    def load(cls, path, map_location='cpu', verbose=False):
+        ckpt = torch.load(path, map_location=map_location, weights_only=False)
+        if verbose:
+            print([(i, v) for i, v in ckpt.items()])
+        out = cls(ckpt["hparams"], None, *ckpt["hnet_component_names"])
+        for i, v in ckpt.items():
+            out.__setattr__(i, v)
+        out._HyperCEZAgent__memory_manager.ez_agent = out.ez_agent
+        return out

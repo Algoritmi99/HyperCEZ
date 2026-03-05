@@ -610,7 +610,6 @@ class EZAgent(Agent):
         assert self.training_mode, "collection only in training mode!"
         self.collector.append(u_t, x_tt, reward)
         self.collector.snapshot_lst.append([])
-
         if self.collector.is_full():
             if self.prev_traj is not None:
                 self.save_previous_trajectory(self.prev_traj, self.collector)
@@ -1637,8 +1636,10 @@ class EZAgent(Agent):
         ]
 
     @classmethod
-    def load(cls, path, map_location='cpu', verbose=False):
-        ckpt = torch.load(path, map_location=map_location, weights_only=False)
+    def load(cls, path=None, ckpt=None, map_location='cpu', verbose=False):
+        assert path is not None or ckpt is not None, "Either path or ckpt must be specified."
+        if path is not None:
+            ckpt = torch.load(path, map_location=map_location, weights_only=False)
         if verbose:
             print([(i, v) for i, v in ckpt.items()])
         out = cls(ckpt["hparams"], ckpt["agent_type"])

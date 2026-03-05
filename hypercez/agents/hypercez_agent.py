@@ -42,14 +42,15 @@ class HyperCEZAgent(Agent):
         self.schedulers = None
         self.seen_tasks:set[int] = set()
         self.cl_training_misc = {}
-        self.__memory_manager = HyperCEZDataManager(self.ez_agent)
+        self.__memory_manager = HyperCEZDataManager(self.ez_agent) if self.ez_agent is not None else None
         self.layerNorms = set()
-        for component_name in self.hnet_component_names:
-            for module_name, module in self.ez_agent.model.__getattr__(component_name).named_modules():
-                if isinstance(module, torch.nn.LayerNorm):
-                    for param_name, param in module.named_parameters():
-                        full_name = f"{module_name}.{param_name}" if module_name else param_name
-                        self.layerNorms.add(full_name)
+        if self.ez_agent is not None:
+            for component_name in self.hnet_component_names:
+                for module_name, module in self.ez_agent.model.__getattr__(component_name).named_modules():
+                    if isinstance(module, torch.nn.LayerNorm):
+                        for param_name, param in module.named_parameters():
+                            full_name = f"{module_name}.{param_name}" if module_name else param_name
+                            self.layerNorms.add(full_name)
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
@@ -72,6 +73,9 @@ class HyperCEZAgent(Agent):
 
     def is_ready_for_training(self, task_id=None, pbar=None):
         return self.__memory_manager.is_ready_for_training(task_id=task_id, pbar=pbar)
+
+    def get_trained_steps(self, task_id=None):
+        return self.__memory_manager.get_trained_steps(task_id=task_id)
 
     def done_training(self, task_id=None, pbar=None):
         return self.__memory_manager.done_training(task_id=task_id, pbar=pbar)

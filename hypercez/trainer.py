@@ -22,33 +22,36 @@ class Trainer:
 
     def train(self, evaluate=False, verbose=False, agent_name=""):
         print("Running Training sequence on", self.device)
-        self.agent.train()
+        if not self.agent.training_mode:
+            self.agent.train()
         train_cnt = 0
         pbar = tqdm()
         evaluated = False
         for task_id in range(self.hparams.num_tasks):
-            pbar.set_description("Collecting data")
-            pbar.set_postfix(task=task_id)
-            # random acting to collect data
             env = self.env_loader.get_env(task_id)
-            x_t, _ = env.reset()
-            self.agent.reset(x_t)
-            while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
-                _, _, u = self.agent.act_init(x_t, task_id=task_id)
-                x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
-                self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
+            if self.agent.get_trained_steps(task_id) == 0:
+                pbar.set_description("Collecting data")
+                pbar.set_postfix(task=task_id)
+                # random acting to collect data
+                x_t, _ = env.reset()
+                self.agent.reset(x_t)
+                while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
+                    _, _, u = self.agent.act_init(x_t, task_id=task_id)
+                    x_tt, reward, terminated, truncated, info = env.step(u.reshape(env.action_space.shape))
+                    self.agent.collect(x_t, u, reward, x_tt, task_id, done=terminated or truncated)
 
-                if self.plotter is not None:
-                    self.plotter.step(reward, terminated or truncated, task_id, split='train')
+                    if self.plotter is not None:
+                        self.plotter.step(reward, terminated or truncated, task_id, split='train')
 
-                x_t = x_tt
-                if terminated or truncated:
-                    x_t, _ = env.reset()
-                    self.agent.reset(x_t)
+                    x_t = x_tt
+                    if terminated or truncated:
+                        x_t, _ = env.reset()
+                        self.agent.reset(x_t)
 
             # trial and error
-            x_t, _ = env.reset()
-            self.agent.reset(x_t)
+            if not self.agent.done_training(task_id=task_id, pbar=pbar):
+                x_t, _ = env.reset()
+                self.agent.reset(x_t)
             it = 0
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 pbar.set_description("Training")
