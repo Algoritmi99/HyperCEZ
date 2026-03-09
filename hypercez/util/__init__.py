@@ -1,3 +1,4 @@
+import math
 import torch
 
 from .args import Hparams
@@ -94,7 +95,8 @@ def clone_ez_state(ez_agent):
 def clip_list(tensors, max_norm):
     if tensors is None:
         return None
-    total_norm = torch.sqrt(sum(t.pow(2).sum() for t in tensors))
+    # tensors is expected to be a list of floats.
+    total_norm = math.sqrt(sum(t * t for t in tensors))
     if total_norm > max_norm:
         scale = max_norm / (total_norm + 1e-8)
         tensors = [t * scale for t in tensors]
