@@ -4,7 +4,7 @@ from collections import Counter
 import torch
 from torch import nn
 
-from hypercez import make_scheduler, adjust_lr, has_nan, clone_ez_state
+from hypercez import make_scheduler, adjust_lr, has_nan, clone_ez_state, clip_list
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import DecisionModel
 from hypercez.agents.hypercez_agent import HyperCEZAgent
@@ -279,7 +279,8 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                         lr=self.hparams.lr_hyper,
                         detach_dt=not self.hparams.backprop_dt
                     )
-                    d_theta = [t / curr_scale for t in d_theta]
+                    d_theta = [self.hparams.dt_scale * (t / curr_scale) for t in d_theta]
+                    d_theta = clip_list(d_theta, self.hparams.max_grad_norm)
 
                 if self.hparams.plastic_prev_tembs:
                     d_tembs = d_theta[-task_id:]
@@ -296,6 +297,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                     mnet=self.ez_agent.model if component_name == "singular" else self.ez_agent.model.__getattr__(component_name),
                     fisher_estimates=fisher_est_map[component_name],
                 )
+                loss_reg = self.hparams.beta * loss_reg
 
                 scaler.scale(loss_reg).backward()
 

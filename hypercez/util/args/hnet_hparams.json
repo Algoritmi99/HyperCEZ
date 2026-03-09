@@ -45,7 +45,8 @@
     "ewc_weight_importance": false,
     "n_fisher": -1,
     "si_eps": 1e-3,
-    "mlp_var_minmax": true
+    "mlp_var_minmax": true,
+    "dt_scale": 1
   },
   "chunked": {
     "hnet_arch": {

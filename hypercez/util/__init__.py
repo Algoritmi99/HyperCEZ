@@ -90,3 +90,12 @@ def clone_ez_state(ez_agent):
         for param_name, param in ez_agent.model.__getattr__(component_name).named_parameters():
             out_state[component_name][param_name] = param.clone().detach()
     return out_state
+
+def clip_list(tensors, max_norm):
+    if tensors is None:
+        return None
+    total_norm = torch.sqrt(sum(t.pow(2).sum() for t in tensors))
+    if total_norm > max_norm:
+        scale = max_norm / (total_norm + 1e-8)
+        tensors = [t * scale for t in tensors]
+    return tensors

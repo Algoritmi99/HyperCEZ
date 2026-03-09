@@ -1,4 +1,5 @@
 import torch
+from numba.cuda.cudadrv.devices import gpus
 
 from hypercez import Hparams
 from hypercez.agents.hypercez_delta_agent import HyperCEZDeltaAgent
@@ -21,6 +22,7 @@ def main():
         "./agents/half_cheetah/agent_999990hypercez_all_agent_initSafe.pth",
         map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
+    hyper_cez_agent.hparams = hparams
 
     cl_env_loader = CLEnvLoader(hparams.env, seed=42)
     for i in range(hparams.num_tasks):
