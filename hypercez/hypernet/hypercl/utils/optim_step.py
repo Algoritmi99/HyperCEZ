@@ -293,7 +293,7 @@ def adam_step(optimizer, detach_dp=True):
             #exp_avg.mul_(beta1)
             #exp_avg += (1 - beta1) * grad
 
-            exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+            exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
             #exp_avg_sq.mul_(beta2)
             #exp_avg_sq = torch.addcmul(exp_avg_sq, 1 - beta2, grad, grad)
             if amsgrad:
@@ -382,14 +382,15 @@ def rmsprop_step(optimizer, detach_dp=True):
             if group['weight_decay'] != 0:
                 grad = grad.add(group['weight_decay'], p.data)
 
-            #square_avg.mul_(alpha).addcmul_(1 - alpha, grad, grad)
-            square_avg = square_avg.mul(alpha).addcmul(1 - alpha, grad, grad)
+            #square_avg.mul_(alpha).addcmul_(grad, grad, value=1 - alpha)
+            square_avg = square_avg.mul(alpha).addcmul(grad, grad,
+                                                       value=1 - alpha)
 
             if group['centered']:
                 grad_avg = state['grad_avg']
                 grad_avg.mul_(alpha).add_(1 - alpha, grad)
-                #avg = square_avg.addcmul(-1, grad_avg, grad_avg).sqrt().add_(group['eps'])
-                avg = square_avg.addcmul(-1, grad_avg, grad_avg).sqrt().\
+                #avg = square_avg.addcmul(grad_avg, grad_avg, value=-1).sqrt().add_(group['eps'])
+                avg = square_avg.addcmul(grad_avg, grad_avg, value=-1).sqrt().\
                     add(group['eps'])
             else:
                 #avg = square_avg.sqrt().add_(group['eps'])
