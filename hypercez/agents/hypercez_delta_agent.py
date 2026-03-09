@@ -268,6 +268,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
 
         # Compute Regularization loss
         if task_id > 0 and self.hparams.beta > 0:
+            curr_scale = scaler.get_scale()
             for component_name in self.hnet_component_names:
                 if self.hparams.no_look_ahead:
                     d_theta = None
@@ -278,6 +279,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                         lr=self.hparams.lr_hyper,
                         detach_dt=not self.hparams.backprop_dt
                     )
+                    d_theta = [t / curr_scale for t in d_theta]
 
                 if self.hparams.plastic_prev_tembs:
                     d_tembs = d_theta[-task_id:]
