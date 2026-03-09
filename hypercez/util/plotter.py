@@ -20,10 +20,12 @@ class Plotter:
         self.reset()
 
     # ---------------------- TensorBoard API ----------------------
-    def enable_tensorboard(self, log_dir="runs/exp1", **writer_kwargs):
+    def enable_tensorboard(self, log_dir="runs/exp1", resume=False, **writer_kwargs):
         """
         Lazily enable TensorBoard logging.
-        Example: plotter.enable_tensorboard("runs/my_exp", flush_secs=10)
+        Example:
+            plotter.enable_tensorboard("runs/my_exp", flush_secs=10)
+            plotter.enable_tensorboard("runs/my_exp", resume=True)
         """
         try:
             from torch.utils.tensorboard import SummaryWriter
@@ -34,6 +36,38 @@ class Plotter:
             ) from e
 
         self.tb_log_dir = log_dir
+
+        # Optionally resume episode indices from existing TensorBoard data
+        if resume and os.path.exists(log_dir):
+            try:
+                import glob
+                from tensorboard.backend.event_processing import event_accumulator
+
+                event_files = glob.glob(os.path.join(log_dir, "events.out.tfevents.*"))
+
+                def _get_last_step_for_tag(tag):
+                    last_step = -1
+                    for ef in event_files:
+                        ea = event_accumulator.EventAccumulator(ef)
+                        ea.Reload()
+                        scalar_tags = ea.Tags().get("scalars", [])
+                        if tag in scalar_tags:
+                            scalars = ea.Scalars(tag)
+                            if scalars:
+                                # Scalars are ordered; take the last one.
+                                last_step = max(last_step, scalars[-1].step)
+                    return last_step
+
+                for split in ("train", "eval"):
+                    tag = f"{split}/episode/total_reward"
+                    last_step = _get_last_step_for_tag(tag)
+                    if last_step >= 0:
+                        self.episode_idx[split] = last_step + 1
+
+            except Exception as e:
+                # Fall back gracefully if resume fails for any reason.
+                print(f"Warning: failed to resume TensorBoard from '{log_dir}': {e}")
+
         self.tb_writer = SummaryWriter(log_dir=log_dir, **writer_kwargs)
 
     def tb_log_scalar(self, tag, value, step=None):
