@@ -280,7 +280,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                         detach_dt=not self.hparams.backprop_dt
                     )
                     d_theta = [self.hparams.dt_scale * (t / curr_scale) for t in d_theta]
-                    d_theta = clip_list(d_theta, self.hparams.max_grad_norm)
+                    d_theta = clip_list(d_theta, self.hparams.grad_max_norm)
 
                 if self.hparams.plastic_prev_tembs:
                     d_tembs = d_theta[-task_id:]
