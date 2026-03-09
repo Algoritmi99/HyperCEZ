@@ -92,12 +92,38 @@ def clone_ez_state(ez_agent):
             out_state[component_name][param_name] = param.clone().detach()
     return out_state
 
-def clip_list(tensors, max_norm):
-    if tensors is None:
+def clip_list(values, max_norm, eps=1e-6):
+    """Clip a list of tensors/floats to have L2 norm at most max_norm.
+
+    Mirrors torch.nn.utils.clip_grad_norm_ with norm_type=2.0, but operates
+    on a list that may contain both tensors and scalars.
+    """
+    if values is None:
         return None
-    # tensors is expected to be a list of floats.
-    total_norm = math.sqrt(sum(t * t for t in tensors))
+    if len(values) == 0:
+        return values
+
+    # Compute total L2 norm^2 over all entries
+    total_norm_sq = 0.0
+    for v in values:
+        if torch.is_tensor(v):
+            # Use tensor 2-norm
+            total_norm_sq += float(v.norm(2).item() ** 2)
+        else:
+            # Assume numeric scalar (float/int)
+            fv = float(v)
+            total_norm_sq += fv * fv
+
+    total_norm = math.sqrt(total_norm_sq)
+
     if total_norm > max_norm:
-        scale = max_norm / (total_norm + 1e-8)
-        tensors = [t * scale for t in tensors]
-    return tensors
+        clip_coef = max_norm / (total_norm + eps)
+        clipped = []
+        for v in values:
+            if torch.is_tensor(v):
+                clipped.append(v * clip_coef)
+            else:
+                clipped.append(float(v) * clip_coef)
+        return clipped
+
+    return values
