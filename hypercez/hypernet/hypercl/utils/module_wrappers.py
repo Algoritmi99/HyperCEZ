@@ -173,7 +173,7 @@ class CLHyperNetInterface(ABC):
 
     @abstractmethod
     def forward(self, task_id=None, theta=None, dTheta=None, task_emb=None,
-                ext_inputs=None, squeeze=True):
+                ext_inputs=None, squeeze=True, amped_weights=False):
         """Compute all HyperWeights.
 
         Args:

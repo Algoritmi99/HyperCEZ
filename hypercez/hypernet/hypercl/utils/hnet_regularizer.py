@@ -172,7 +172,7 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
                         mnet=None, inds_of_out_heads=None,
                         fisher_estimates=None, prev_theta=None,
                         prev_task_embs=None, batch_size=None, reg_scaling=None,
-                        si_omega=None):
+                        si_omega=None, amped_weights=False):
     r"""This regularizer simply restricts the output-mapping for previous
     task embeddings. I.e., for all :math:`j < \text{task\_id}` minimize:
 
@@ -264,10 +264,10 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
 
     for i in ids_to_reg:
         if dTembs is None:
-            weights_predicted = hnet.forward(task_id=i, dTheta=dTheta)
+            weights_predicted = hnet.forward(task_id=i, dTheta=dTheta, amped_weights=amped_weights)
         else:
             temb = hnet.get_task_emb(i) + dTembs[i]
-            weights_predicted = hnet.forward(dTheta=dTheta, task_emb=temb)
+            weights_predicted = hnet.forward(dTheta=dTheta, task_emb=temb, amped_weights=amped_weights)
 
         if targets is not None:
             target = targets[i]

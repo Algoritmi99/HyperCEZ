@@ -11,6 +11,21 @@ def check_finite(model):
     if bad:
         raise RuntimeError(f"Non-finite values detected in {model}: {', '.join(bad)}")
 
+def check_finite_grads(model):
+    """Check that all existing parameter gradients of `model` are finite.
+
+    Raises:
+        RuntimeError: if any parameter has a gradient that contains NaN or Inf.
+    """
+    bad = []
+    for name, p in model.named_parameters():
+        if p.grad is None:
+            continue
+        if not torch.isfinite(p.grad).all():
+            bad.append(name)
+    if bad:
+        raise RuntimeError(f"Non-finite gradients detected in {model}: {', '.join(bad)}")
+
 def deep_copy_full_state(obj):
     # Tensor case
     if torch.is_tensor(obj):
@@ -92,8 +107,11 @@ def clone_ez_state(ez_agent):
             out_state[component_name][param_name] = param.clone().detach()
     return out_state
 
-def clip_list(values, max_norm, eps=1e-6):
+def clip_list(values, max_norm, eps=1e-6, use_safe_max=False, safe_max=1e2):
     """Clip a list of tensors/floats to have L2 norm at most max_norm.
+
+    Optionally, also bound each individual tensor's absolute values by
+    ``safe_max`` to keep entries in a numerically safe range.
 
     Mirrors torch.nn.utils.clip_grad_norm_ with norm_type=2.0, but operates
     on a list that may contain both tensors and scalars.
@@ -116,6 +134,7 @@ def clip_list(values, max_norm, eps=1e-6):
 
     total_norm = math.sqrt(total_norm_sq)
 
+    result = values
     if total_norm > max_norm:
         clip_coef = max_norm / (total_norm + eps)
         clipped = []
@@ -124,6 +143,36 @@ def clip_list(values, max_norm, eps=1e-6):
                 clipped.append(v * clip_coef)
             else:
                 clipped.append(float(v) * clip_coef)
-        return clipped
+        result = clipped
 
-    return values
+    if not use_safe_max:
+        return result
+
+    # Per-entry safety clipping based on max absolute value.
+    safe_result = []
+    for v in result:
+        if torch.is_tensor(v):
+            if v.numel() == 0:
+                safe_result.append(v)
+                continue
+            max_abs = v.abs().max()
+            if max_abs > safe_max:
+                scale = safe_max / (max_abs + eps)
+                safe_result.append(v * scale)
+            else:
+                safe_result.append(v)
+        else:
+            fv = float(v)
+            if fv > safe_max:
+                fv = safe_max
+            elif fv < -safe_max:
+                fv = -safe_max
+            safe_result.append(fv)
+
+    return safe_result
+
+def list_has_nonfinite(tensors):
+    for t in tensors:
+        if not torch.isfinite(t).all():
+            return True
+    return False

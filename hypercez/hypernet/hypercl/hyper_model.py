@@ -51,6 +51,7 @@ from .mnet_interface import MainNetInterface
 from .utils import init_utils as iutils
 from .utils.module_wrappers import CLHyperNetInterface
 from .utils.torch_utils import init_params
+from hypercez.util import list_has_nonfinite
 
 """
 Modified by Philip Huang
@@ -356,7 +357,7 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
 
     # @override from CLHyperNetInterface
     def forward(self, task_id=None, theta=None, dTheta=None, task_emb=None,
-                ext_inputs=None, squeeze=True):
+                ext_inputs=None, squeeze=True, amped_weights=False):
         """Implementation of abstract super class method."""
         if task_id is None and task_emb is None:
             raise Exception('The hyper network has to get either a task ID' +
@@ -381,6 +382,8 @@ class HyperNetwork(nn.Module, CLHyperNetInterface):
             weights = []
             for i, t in enumerate(theta):#mahshidlovesarash
                 weights.append(t + dTheta[i])
+            if amped_weights and list_has_nonfinite(weights):
+                weights = theta
         else:
             weights = theta
 

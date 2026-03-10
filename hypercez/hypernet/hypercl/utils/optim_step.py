@@ -95,7 +95,20 @@ from torch import optim
 import torch
 import math
 
-def calc_delta_theta(optimizer, use_sgd_change, lr=None, detach_dt=True):
+def _maybe_unscale_grad(grad, grad_scale):
+    """Return a (possibly) unscaled copy of `grad`.
+
+    Note: This function never modifies `grad` in-place.
+    """
+    if grad_scale is None:
+        return grad
+    # `grad_scale` might be a Python number or a 0-dim tensor.
+    if isinstance(grad_scale, torch.Tensor):
+        grad_scale = grad_scale.detach().to(device=grad.device, dtype=grad.dtype)
+    return grad / grad_scale
+
+
+def calc_delta_theta(optimizer, use_sgd_change, lr=None, detach_dt=True, grad_scale=None):
     r"""Calculate :math:`\Delta\theta`, i.e., the change in trainable parameters
     (:math:`\theta`) in order to minimize the task-specific loss.
 
@@ -119,6 +132,11 @@ def calc_delta_theta(optimizer, use_sgd_change, lr=None, detach_dt=True):
             :math:`\Delta\theta`, you have to call
             :func:`torch.autograd.backward` with `create_graph` set to
             :code:`True` before calling this method.
+        grad_scale (optional): If given, gradients will be divided by this
+            scale factor before computing the lookahead change. This is useful
+            when gradients were produced under AMP gradient scaling (e.g., via
+            ``torch.amp.GradScaler``) and the caller intentionally did not call
+            ``scaler.unscale_(optimizer)`` before computing :math:`\Delta\theta`.
 
     Returns:
         :math:`\Delta\theta`
@@ -129,23 +147,28 @@ def calc_delta_theta(optimizer, use_sgd_change, lr=None, detach_dt=True):
         ret = []
         for g in optimizer.param_groups:
             for p in g['params']:
+                if p.grad is None:
+                    ret.append(torch.zeros_like(p.data))
+                    continue
                 if detach_dt:
-                    ret.append(-lr * p.grad.detach().clone())
+                    grad = p.grad.detach().clone()
                 else:
-                    ret.append(-lr * p.grad.clone())
+                    grad = p.grad.clone()
+                grad = _maybe_unscale_grad(grad, grad_scale)
+                ret.append(-lr * grad)
         return ret
     else:
         if isinstance(optimizer, optim.SGD):
-            return sgd_step(optimizer, detach_dp=detach_dt)
+            return sgd_step(optimizer, detach_dp=detach_dt, grad_scale=grad_scale)
         if isinstance(optimizer, optim.Adam):
-            return adam_step(optimizer, detach_dp=detach_dt)
+            return adam_step(optimizer, detach_dp=detach_dt, grad_scale=grad_scale)
         if isinstance(optimizer, optim.RMSprop):
-            return rmsprop_step(optimizer, detach_dp=detach_dt)
+            return rmsprop_step(optimizer, detach_dp=detach_dt, grad_scale=grad_scale)
         else:
             raise NotImplementedError('Not implemented for optimizer %s' %
                                       optimizer.type)
 
-def sgd_step(optimizer, detach_dp=True):
+def sgd_step(optimizer, detach_dp=True, grad_scale=None):
     """Performs a single optimization step using the SGD optimizer. The code
     has been copied from:
 
@@ -179,12 +202,14 @@ def sgd_step(optimizer, detach_dp=True):
 
         for p in group['params']:
             if p.grad is None:
+                d_ps.append(torch.zeros_like(p.data))
                 continue
 
             if detach_dp:
                 d_p = p.grad.detach().clone()
             else:
                 d_p = p.grad.clone()
+            d_p = _maybe_unscale_grad(d_p, grad_scale)
 
             if weight_decay != 0:
                 d_p.add_(weight_decay, p.data)
@@ -211,7 +236,7 @@ def sgd_step(optimizer, detach_dp=True):
 
     return d_ps
 
-def adam_step(optimizer, detach_dp=True):
+def adam_step(optimizer, detach_dp=True, grad_scale=None):
     """Performs a single optimization step using the Adam optimizer. The code
     has been copied from:
 
@@ -239,13 +264,14 @@ def adam_step(optimizer, detach_dp=True):
     for group in optimizer.param_groups:
         for p in group['params']:
             if p.grad is None:
-                d_ps.append(0)
+                d_ps.append(torch.zeros_like(p.data))
                 continue
 
             if detach_dp:
                 grad = p.grad.detach().clone()
             else:
                 grad = p.grad.clone()
+            grad = _maybe_unscale_grad(grad, grad_scale)
 
             if grad.is_sparse:
                 raise RuntimeError(
@@ -314,7 +340,7 @@ def adam_step(optimizer, detach_dp=True):
 
     return d_ps
 
-def rmsprop_step(optimizer, detach_dp=True):
+def rmsprop_step(optimizer, detach_dp=True, grad_scale=None):
     """Performs a single optimization step using the RMSprop optimizer. The code
     has been copied from:
 
@@ -344,12 +370,14 @@ def rmsprop_step(optimizer, detach_dp=True):
     for group in optimizer.param_groups:
         for p in group['params']:
             if p.grad is None:
+                d_ps.append(torch.zeros_like(p.data))
                 continue
 
             if detach_dp:
                 grad = p.grad.detach().clone()
             else:
                 grad = p.grad.clone()
+            grad = _maybe_unscale_grad(grad, grad_scale)
 
             if grad.is_sparse:
                 raise RuntimeError('RMSprop does not support sparse gradients')
