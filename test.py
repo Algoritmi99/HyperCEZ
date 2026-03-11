@@ -1,5 +1,4 @@
 import torch
-from numba.cuda.cudadrv.devices import gpus
 
 from hypercez import Hparams
 from hypercez.agents.hypercez_delta_agent import HyperCEZDeltaAgent
@@ -29,7 +28,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_noLN_noReg' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,
@@ -39,7 +38,7 @@ def main():
         plotter=plotter,
     )
     trainer.train(
-        # evaluate=True,
+        evaluate=True,
         # verbose=True,
         agent_name="hypercez_all_agent_initSafe"
     )
