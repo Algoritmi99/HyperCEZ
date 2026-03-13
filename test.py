@@ -22,6 +22,7 @@ def main():
         map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
     hyper_cez_agent.hparams = hparams
+    hyper_cez_agent.alphas = {0: hyper_cez_agent.alphas}
 
     cl_env_loader = CLEnvLoader(hparams.env, seed=42)
     for i in range(hparams.num_tasks):

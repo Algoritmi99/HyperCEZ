@@ -20,6 +20,9 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.__frozen_ez_state = None
         self.alphas = None
         self.alpha_max = 0.2
+        self.ema_task_loss = None
+        self.ema_reg_loss = None
+        self.ema_momentum = 0.99
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
@@ -281,6 +284,16 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
 
         # Compute Regularization loss
         if task_id > 0 and self.hparams.beta > 0:
+            # prep EMA Loss Ratio Balancing
+            with torch.no_grad():
+                task_loss_val = weighted_loss.detach().abs()
+                if self.ema_task_loss is None:
+                    self.ema_task_loss = task_loss_val
+                else:
+                    self.ema_task_loss = self.ema_momentum * self.ema_task_loss + (
+                                1 - self.ema_momentum) * task_loss_val
+
+            # compute regularization
             curr_scale = scaler.get_scale()
             for component_name in self.hnet_component_names:
                 if self.hparams.no_look_ahead:
@@ -312,8 +325,23 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                     fisher_estimates=fisher_est_map[component_name],
                     amped_weights=True
                 )
-                loss_reg = self.hparams.beta * loss_reg
 
+                # compute effective beta
+                with torch.no_grad():
+                    reg_loss_val = loss_reg.detach()
+                    if self.ema_reg_loss is None:
+                        self.ema_reg_loss = reg_loss_val
+                    else:
+                        self.ema_reg_loss = self.ema_momentum * self.ema_reg_loss + (
+                                    1 - self.ema_momentum) * reg_loss_val
+
+                beta_dynamic = self.hparams.beta * (self.ema_task_loss / (self.ema_reg_loss + 1e-8))
+                beta_dynamic = torch.clamp(beta_dynamic, max=self.hparams.beta * 1000)
+
+                # compute effective regularization loss
+                loss_reg = beta_dynamic * loss_reg
+
+                # backward pass for regularization loss
                 scaler.scale(loss_reg).backward()
 
         # unscale, clip, step on theta optimizers
