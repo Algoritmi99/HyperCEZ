@@ -32,7 +32,11 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 )
         self.ez_agent.mem_id = 0
         self.__frozen_ez_state = clone_ez_state(self.ez_agent)
-        self.alphas = {component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names}
+        self.alphas = {
+            0: {
+                component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names
+            }
+        }
         self.add_task(0)
 
     def to(self, device=torch.device("cpu")):
@@ -40,7 +44,10 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.ez_agent.to(device)
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
-            self.alphas[hnet_name].to(device)
+            for t_id in self.seen_tasks:
+                self.alphas[t_id][hnet_name] = nn.Parameter(
+                    self.alphas[t_id][hnet_name].data.to(device)
+                )
             self.__frozen_ez_state[hnet_name] = {
                 k: v.to(device)
                 for k, v in self.__frozen_ez_state[hnet_name].items()
@@ -82,7 +89,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                     if param_name in self.layerNorms:
                         state_dict[param_name] = orig_param
                     else:
-                        effective_alpha = self.alpha_max * torch.tanh(self.alphas[component_name])
+                        effective_alpha = self.alpha_max * torch.tanh(self.alphas[task_id][component_name])
                         state_dict[param_name] = (self.__frozen_ez_state[component_name][param_name] +
                                                   effective_alpha * d_weights[i])
                         assert d_weights[i].requires_grad
@@ -92,15 +99,21 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
 
         return full_state
 
-    def add_task(self, task_id, use_prior=False):
+    def add_task(self, task_id, use_prior=False, use_prior_alphas=True):
         """This is equivalent to augment_model in HyperCRL"""
         assert task_id not in self.seen_tasks, f"Task {task_id} already seen"
+        last_task_id = max(self.seen_tasks) if self.seen_tasks else -1
+        self.alphas[task_id] = {
+            component_name: nn.Parameter(self.alphas[last_task_id][component_name].detach().clone()) for component_name in self.hnet_component_names
+        } if use_prior_alphas else {
+            component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names
+        }
         self.seen_tasks.add(task_id)
         targets = {}
         fisher_est_map = {}
         theta_optimizers = {}
         emb_optimizers = {}
-        alpha_optimizer = torch.optim.Adam(self.alphas.values(), lr=self.hparams.lr_hyper)
+        alpha_optimizer = torch.optim.Adam(self.alphas[task_id].values(), lr=self.hparams.lr_hyper)
         reg_param_map = {}
         schedulers = {alpha_optimizer: make_scheduler(alpha_optimizer, self.hparams)}
         scaler = torch.amp.GradScaler()
@@ -305,7 +318,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
 
         # unscale, clip, step on theta optimizers
         scaler.unscale_(alpha_optimizer)
-        torch.nn.utils.clip_grad_norm_(self.alphas.values(), self.hparams.grad_max_norm)
+        torch.nn.utils.clip_grad_norm_(self.alphas[task_id].values(), self.hparams.grad_max_norm)
         scaler.step(alpha_optimizer)
         for component_name in self.hnet_component_names:
             scaler.unscale_(theta_optimizers[component_name])
