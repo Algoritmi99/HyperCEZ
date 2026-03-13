@@ -4,7 +4,7 @@ from collections import Counter
 import torch
 from torch import nn
 
-from hypercez import make_scheduler, adjust_lr, has_nan, clone_ez_state, clip_list, check_finite_grads
+from hypercez import make_scheduler, adjust_lr, has_nan, clone_ez_state, clip_list
 from hypercez.agents import EZAgent
 from hypercez.agents.ez_agent import DecisionModel
 from hypercez.agents.hypercez_agent import HyperCEZAgent
@@ -21,7 +21,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.alphas = None
         self.alpha_max = 0.2
         self.ema_task_loss = None
-        self.ema_reg_loss = None
+        self.ema_reg_loss = {}
         self.ema_momentum = 0.99
 
     def init_model(self):
@@ -329,13 +329,13 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 # compute effective beta
                 with torch.no_grad():
                     reg_loss_val = loss_reg.detach()
-                    if self.ema_reg_loss is None:
-                        self.ema_reg_loss = reg_loss_val
+                    if component_name not in self.ema_reg_loss or self.ema_reg_loss[component_name] is None:
+                        self.ema_reg_loss[component_name] = reg_loss_val
                     else:
-                        self.ema_reg_loss = self.ema_momentum * self.ema_reg_loss + (
+                        self.ema_reg_loss[component_name] = self.ema_momentum * self.ema_reg_loss[component_name] + (
                                     1 - self.ema_momentum) * reg_loss_val
 
-                beta_dynamic = self.hparams.beta * (self.ema_task_loss / (self.ema_reg_loss + 1e-8))
+                beta_dynamic = self.hparams.beta * (self.ema_task_loss / (self.ema_reg_loss[component_name] + 1e-8))
                 beta_dynamic = torch.clamp(beta_dynamic, max=self.hparams.beta * 1000)
 
                 # compute effective regularization loss
