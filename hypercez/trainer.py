@@ -53,6 +53,7 @@ class Trainer:
                 x_t, _ = env.reset()
                 self.agent.reset(x_t)
             it = 0
+            eval_cnt = 0
             while not self.agent.done_training(task_id=task_id, pbar=pbar):
                 pbar.set_description("Training")
                 pbar.set_postfix(task=task_id)
@@ -78,8 +79,10 @@ class Trainer:
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate and not evaluated:
                     evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                     evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
-                    self.agent.save("./agents/" + self.hparams.env + "/agent_" + str(it) + agent_name + ".pth")
-                    self.plotter.save_raw_data()
+                    if eval_cnt % 5 == 0:
+                        self.agent.save("./agents/" + self.hparams.env + "/agent_" + str(it) + agent_name + ".pth")
+                        self.plotter.save_raw_data()
+                    eval_cnt += 1
                     evaluated = True
 
                 it += 1
