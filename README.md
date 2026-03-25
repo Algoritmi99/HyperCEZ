@@ -27,6 +27,8 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
+cd continual_world
+pip install -e .
 ```
 
 ## Quick Start

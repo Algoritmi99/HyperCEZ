@@ -1,0 +1,8 @@
+Acknowledgements
+Continual World heavily relies on MetaWorld.
+
+The implementation of SAC used in our code comes from Spinning Up in Deep RL.
+
+Our research was supported by the PLGrid infrastructure.
+
+Our experiments were managed using Neptune.
