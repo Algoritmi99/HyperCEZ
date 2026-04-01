@@ -1,10 +1,10 @@
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, SupportsFloat
 
-import gym
+import gymnasium as gym
 import metaworld
 import numpy as np
-from gym.wrappers import TimeLimit
+from gymnasium.wrappers import TimeLimit
 
 from continualworld.utils.wrappers import OneHotAdder, RandomizationWrapper, SuccessCounter
 
@@ -124,23 +124,28 @@ class ContinualLearningEnv(gym.Env):
                 self.avg_env_success[env.name] = np.mean(successes)
         return all_successes
 
-    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: Any) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         self._check_steps_bound()
-        obs, reward, done, info = self.envs[self.cur_seq_idx].step(action)
+        obs, reward, terminated, truncated, info = self.envs[self.cur_seq_idx].step(action)
         info["seq_idx"] = self.cur_seq_idx
 
         self.cur_step += 1
         if self.cur_step % self.steps_per_env == 0:
             # If we hit limit for current env, end the episode.
             # This may cause border episodes to be shorter than 200.
-            done = True
+            truncated = True
             info["TimeLimit.truncated"] = True
 
             self.cur_seq_idx += 1
 
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
-    def reset(self) -> np.ndarray:
+    def reset(
+            self,
+            *,
+            seed: int | None = None,
+            options: dict[str, Any] | None = None,
+    ) -> tuple[Any, dict[str, Any]]:
         self._check_steps_bound()
         return self.envs[self.cur_seq_idx].reset()
 
@@ -166,9 +171,9 @@ def get_cl_env(
         env = MT50.train_classes[task_name]()
         env = RandomizationWrapper(env, get_subtasks(task_name), randomization)
         env = OneHotAdder(env, one_hot_idx=i, one_hot_len=num_tasks)
-        env.name = task_name
         env = TimeLimit(env, META_WORLD_TIME_HORIZON)
         env = SuccessCounter(env)
+        env.name = task_name
         envs.append(env)
     cl_env = ContinualLearningEnv(envs, steps_per_task)
     cl_env.name = "ContinualLearningEnv"
@@ -212,15 +217,15 @@ class MultiTaskEnv(gym.Env):
                 self.avg_env_success[env.name] = np.mean(successes)
         return all_successes
 
-    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, Dict]:
+    def step(self, action: Any) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         self._check_steps_bound()
-        obs, reward, done, info = self.envs[self._cur_seq_idx].step(action)
+        obs, reward, terminated, truncated, info = self.envs[self._cur_seq_idx].step(action)
         info["mt_seq_idx"] = self._cur_seq_idx
         if self.cycle_mode == "step":
             self._cur_seq_idx = (self._cur_seq_idx + 1) % self.num_envs
         self.cur_step += 1
 
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def reset(self) -> np.ndarray:
         self._check_steps_bound()

@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Callable, Iterable, List
 
 from continualworld.envs import get_cl_env, get_single_env
@@ -134,6 +135,8 @@ def main(
 
 
 if __name__ == "__main__":
+    print(Path.cwd())
+
     args = vars(cl_parse_args())
     logger = EpochLogger(args["logger_output"], config=args, group_id=args["group_id"])
     del args["group_id"]

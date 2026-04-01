@@ -4,7 +4,7 @@ import random
 import time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import gym
+import gymnasium as gym
 import numpy as np
 import tensorflow as tf
 
@@ -181,8 +181,6 @@ class SAC:
             + self.critic2.common_variables
         )
 
-        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-
         # For reference on automatic alpha tuning, see
         # "Automating Entropy Adjustment for Maximum Entropy" section
         # in https://arxiv.org/abs/1812.05905
@@ -199,6 +197,14 @@ class SAC:
                 self.target_entropy = (
                     np.prod(env.action_space.shape).astype(np.float32) * target_1d_entropy
                 )
+
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
+        # Keras 3 optimizers track a fixed set of variables. Build the optimizer
+        # once with all variables that can be updated during training.
+        optimizer_variables = self.actor.trainable_variables + self.critic_variables
+        if self.auto_alpha:
+            optimizer_variables += [self.all_log_alpha]
+        self.optimizer.build(optimizer_variables)
 
     def adjust_gradients(
         self,
@@ -409,9 +415,10 @@ class SAC:
             for j in range(num_episodes):
                 obs, done, episode_return, episode_len = test_env.reset(), False, 0, 0
                 while not (done or (episode_len == self.max_episode_len)):
-                    obs, reward, done, _ = test_env.step(
+                    obs, reward, terminated, truncated, _ = test_env.step(
                         self.get_action_test(tf.convert_to_tensor(obs), tf.constant(deterministic))
                     )
+                    done = terminated or truncated
                     episode_return += reward
                     episode_len += 1
                 self.logger.store(
@@ -557,7 +564,8 @@ class SAC:
                 action = self.env.action_space.sample()
 
             # Step the env
-            next_obs, reward, done, info = self.env.step(action)
+            next_obs, reward, terminated, truncated, info = self.env.step(action)
+            done = terminated or truncated
             episode_return += reward
             episode_len += 1
 

@@ -1,15 +1,15 @@
 TASK_SEQS = {
     "CW10": [
-        "hammer-v1",
-        "push-wall-v1",
-        "faucet-close-v1",
-        "push-back-v1",
-        "stick-pull-v1",
-        "handle-press-side-v1",
-        "push-v1",
-        "shelf-place-v1",
-        "window-close-v1",
-        "peg-unplug-side-v1",
+        "hammer-v3",
+        "push-wall-v3",
+        "faucet-close-v3",
+        "push-back-v3",
+        "stick-pull-v3",
+        "handle-press-side-v3",
+        "push-v3",
+        "shelf-place-v3",
+        "window-close-v3",
+        "peg-unplug-side-v3",
     ],
 }
 

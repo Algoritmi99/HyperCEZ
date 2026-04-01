@@ -1,10 +1,13 @@
 import random
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, SupportsFloat
 
-import gym
+import gymnasium as gym
 import metaworld
 import numpy as np
-from gym.spaces import Box
+from gymnasium.spaces import Box
+from numpy import ndarray
+
+from hypercez import np_non_imag
 
 
 class SuccessCounter(gym.Wrapper):
@@ -15,20 +18,20 @@ class SuccessCounter(gym.Wrapper):
         self.successes = []
         self.current_success = False
 
-    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, Dict]:
-        obs, reward, done, info = self.env.step(action)
+    def step(self, action: Any) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
+        obs, reward, terminated, truncated, info = self.env.step(action)
         if info.get("success", False):
             self.current_success = True
-        if done:
+        if terminated or truncated:
             self.successes.append(self.current_success)
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def pop_successes(self) -> List[bool]:
         res = self.successes
         self.successes = []
         return res
 
-    def reset(self, **kwargs) -> np.ndarray:
+    def reset(self, **kwargs) -> tuple[Any, dict[str, Any]]:
         self.current_success = False
         return self.env.reset(**kwargs)
 
@@ -55,14 +58,15 @@ class OneHotAdder(gym.Wrapper):
         )
         self.orig_one_hot_dim = orig_one_hot_dim
 
-    def _append_one_hot(self, obs: np.ndarray) -> np.ndarray:
+    def _append_one_hot(self, obs: tuple[Any, dict[str, Any]]) -> np.ndarray:
         if self.orig_one_hot_dim > 0:
             obs = obs[: -self.orig_one_hot_dim]
-        return np.concatenate([obs, self.to_append])
 
-    def step(self, action: Any) -> Tuple[np.ndarray, float, bool, Dict]:
-        obs, reward, done, info = self.env.step(action)
-        return self._append_one_hot(obs), reward, done, info
+        return np.concatenate([np_non_imag(obs), self.to_append])
+
+    def step(self, action: Any) -> tuple[ndarray, SupportsFloat, bool, bool, dict[str, Any]]:
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._append_one_hot(obs), reward, terminated, truncated, info
 
     def reset(self, **kwargs) -> np.ndarray:
         return self._append_one_hot(self.env.reset(**kwargs))

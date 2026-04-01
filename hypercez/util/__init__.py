@@ -1,5 +1,6 @@
 import math
 import torch
+from numpy import ndarray
 
 from .args import Hparams
 
@@ -176,3 +177,8 @@ def list_has_nonfinite(tensors):
         if not torch.isfinite(t).all():
             return True
     return False
+
+def np_non_imag(inp: ndarray | tuple):
+    if isinstance(inp, tuple):
+        return inp[0]
+    return inp

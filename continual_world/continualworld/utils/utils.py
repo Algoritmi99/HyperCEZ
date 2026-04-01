@@ -4,7 +4,7 @@ import string
 from datetime import datetime
 from typing import Callable, Dict, Optional, Type, Union
 
-import gym
+import gymnasium as gym
 import numpy as np
 import tensorflow as tf
 
@@ -58,7 +58,7 @@ def float_or_str(v: Union[float, str]) -> Union[float, str]:
 
 def reset_optimizer(optimizer: tf.keras.optimizers.Optimizer) -> None:
     # Skip the first variable, its step count.
-    for var in optimizer.variables()[1:]:
+    for var in optimizer.variables[1:]:
         var.assign(tf.zeros_like(var))
 
 
