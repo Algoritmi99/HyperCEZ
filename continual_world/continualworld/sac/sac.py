@@ -502,11 +502,12 @@ class SAC:
                 dir_prefixes.append("./checkpoints")
 
         for prefix in dir_prefixes:
-            self.actor.save_weights(os.path.join(prefix, "actor"))
-            self.critic1.save_weights(os.path.join(prefix, "critic1"))
-            self.target_critic1.save_weights(os.path.join(prefix, "target_critic1"))
-            self.critic2.save_weights(os.path.join(prefix, "critic2"))
-            self.target_critic2.save_weights(os.path.join(prefix, "target_critic2"))
+            os.makedirs(prefix, exist_ok=True)
+            self.actor.save_weights(os.path.join(prefix, "actor.weights.h5"))
+            self.critic1.save_weights(os.path.join(prefix, "critic1.weights.h5"))
+            self.target_critic1.save_weights(os.path.join(prefix, "target_critic1.weights.h5"))
+            self.critic2.save_weights(os.path.join(prefix, "critic2.weights.h5"))
+            self.target_critic2.save_weights(os.path.join(prefix, "target_critic2.weights.h5"))
 
     def _handle_task_change(self, current_task_idx: int):
         self.on_task_start(current_task_idx)
