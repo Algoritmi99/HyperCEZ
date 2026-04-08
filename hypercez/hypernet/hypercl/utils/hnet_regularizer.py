@@ -172,7 +172,8 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
                         mnet=None, inds_of_out_heads=None,
                         fisher_estimates=None, prev_theta=None,
                         prev_task_embs=None, batch_size=None, reg_scaling=None,
-                        si_omega=None, amped_weights=False):
+                        si_omega=None, amped_weights=False,
+                        return_per_task_regs=False):
     r"""This regularizer simply restricts the output-mapping for previous
     task embeddings. I.e., for all :math:`j < \text{task\_id}` minimize:
 
@@ -236,8 +237,14 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
             number of previous tasks, all previous tasks are regularized.
         reg_scaling (optional): If specified, the regulariation terms for the 
             different tasks are scaled arcording to the entries of this list.
+        return_per_task_regs (optional): If ``True``, the function returns a
+            tuple ``(mean_reg, per_task_regs)`` where ``per_task_regs`` is a
+            list containing unscaled regularization terms for each previous
+            task index. Entries can be ``None`` for tasks that were not sampled
+            when ``batch_size`` is used.
     Returns:
-        The value of the regularizer.
+        The value of the regularizer. If ``return_per_task_regs`` is ``True``,
+        return a tuple ``(reg, per_task_regs)``.
     """
     assert(isinstance(hnet, CLHyperNetInterface))
     assert(task_id > 0)
@@ -261,6 +268,7 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
             num_regs = batch_size
 
     reg = 0
+    per_task_regs = [None] * task_id if return_per_task_regs else None
 
     for i in ids_to_reg:
         if dTembs is None:
@@ -309,12 +317,18 @@ def calc_fix_target_reg(hnet, task_id, targets=None, dTheta=None, dTembs=None,
         else:
             reg_i = (W_target - W_predicted).pow(2).sum()
 
+        if return_per_task_regs:
+            per_task_regs[i] = reg_i
+
         if reg_scaling is not None:
             reg += reg_scaling[i] * reg_i
         else:
             reg += reg_i
 
-    return reg / num_regs
+    mean_reg = reg / num_regs
+    if return_per_task_regs:
+        return mean_reg, per_task_regs
+    return mean_reg
 
 def _assert_shape_equality(list1, list2):
     """Ensure that 2 lists of tensors have the same shape."""

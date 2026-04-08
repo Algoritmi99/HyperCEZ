@@ -23,6 +23,53 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.ema_task_loss = None
         self.ema_reg_loss = {}
         self.ema_momentum = 0.99
+        self.ema_reg_loss_per_task = {}
+        self.reg_scaling_min = 0.25
+        self.reg_scaling_max = 4.0
+
+    def _get_dynamic_reg_scaling(self, component_name: str, task_id: int):
+        if task_id <= 0:
+            return None
+
+        component_ema = self.ema_reg_loss_per_task.get(component_name, None)
+        if component_ema is None:
+            return None
+
+        ema_vals = []
+        for prev_task_id in range(task_id):
+            ema_val = component_ema.get(prev_task_id, None)
+            if ema_val is None:
+                return None
+            ema_vals.append(torch.clamp(ema_val.detach().abs(), min=1e-8))
+
+        if len(ema_vals) == 0:
+            return None
+
+        ema_tensor = torch.stack(ema_vals)
+        inv_ema = 1.0 / (ema_tensor + 1e-8)
+        inv_ema = inv_ema / (inv_ema.mean() + 1e-8)
+        inv_ema = torch.clamp(inv_ema, min=self.reg_scaling_min, max=self.reg_scaling_max)
+
+        return inv_ema.tolist()
+
+    def _update_per_task_reg_ema(self, component_name: str, per_task_regs):
+        if per_task_regs is None:
+            return
+
+        if component_name not in self.ema_reg_loss_per_task:
+            self.ema_reg_loss_per_task[component_name] = {}
+
+        with torch.no_grad():
+            for prev_task_id, reg_val in enumerate(per_task_regs):
+                if reg_val is None:
+                    continue
+                reg_abs = reg_val.detach().abs()
+                if prev_task_id not in self.ema_reg_loss_per_task[component_name]:
+                    self.ema_reg_loss_per_task[component_name][prev_task_id] = reg_abs
+                else:
+                    self.ema_reg_loss_per_task[component_name][prev_task_id] = \
+                        self.ema_momentum * self.ema_reg_loss_per_task[component_name][prev_task_id] + \
+                        (1 - self.ema_momentum) * reg_abs
 
     def init_model(self):
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "singular":
@@ -316,7 +363,9 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 else:
                     d_tembs = None
 
-                loss_reg = hnet_regularizer.calc_fix_target_reg(
+                reg_scaling = self._get_dynamic_reg_scaling(component_name, task_id)
+
+                loss_reg, per_task_regs = hnet_regularizer.calc_fix_target_reg(
                     self.hnet_map[component_name],
                     task_id,
                     targets=targets[component_name],
@@ -324,8 +373,11 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                     dTembs=d_tembs,
                     mnet=self.ez_agent.model if component_name == "singular" else self.ez_agent.model.__getattr__(component_name),
                     fisher_estimates=fisher_est_map[component_name],
-                    amped_weights=True
+                    reg_scaling=reg_scaling,
+                    amped_weights=True,
+                    return_per_task_regs=True
                 )
+                self._update_per_task_reg_ema(component_name, per_task_regs)
 
                 # compute effective beta
                 with torch.no_grad():
