@@ -48,9 +48,10 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
             for t_id in self.seen_tasks:
-                self.alphas[t_id][hnet_name] = nn.Parameter(
-                    self.alphas[t_id][hnet_name].data.to(device)
-                )
+                with torch.no_grad():
+                    self.alphas[t_id][hnet_name].data = self.alphas[t_id][hnet_name].data.to(device)
+                    if self.alphas[t_id][hnet_name].grad is not None:
+                        self.alphas[t_id][hnet_name].grad.data = self.alphas[t_id][hnet_name].grad.data.to(device)
             self.__frozen_ez_state[hnet_name] = {
                 k: v.to(device)
                 for k, v in self.__frozen_ez_state[hnet_name].items()
