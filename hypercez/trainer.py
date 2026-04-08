@@ -81,7 +81,7 @@ class Trainer:
                     evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
                     if eval_cnt % 5 == 0:
                         self.agent.save(
-                            "./agents/" + self.hparams.env + "/agent_t" + task_id + "_" + str(it) + agent_name + ".pth"
+                            "./agents/" + self.hparams.env + "/agent_t" + str(task_id) + "_" + str(it) + agent_name + ".pth"
                         )
                         self.plotter.save_raw_data()
                     eval_cnt += 1
