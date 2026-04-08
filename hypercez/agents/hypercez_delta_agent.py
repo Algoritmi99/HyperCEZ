@@ -108,7 +108,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         last_task_id = max(self.seen_tasks) if self.seen_tasks else -1
         self.alphas[task_id] = {
             component_name: nn.Parameter(self.alphas[last_task_id][component_name].detach().clone()) for component_name in self.hnet_component_names
-        } if use_prior_alphas else {
+        } if use_prior_alphas and last_task_id != -1 else {
             component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names
         }
         self.seen_tasks.add(task_id)
