@@ -154,11 +154,12 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         """This is equivalent to augment_model in HyperCRL"""
         assert task_id not in self.seen_tasks, f"Task {task_id} already seen"
         last_task_id = max(self.seen_tasks) if self.seen_tasks else -1
-        self.alphas[task_id] = {
-            component_name: nn.Parameter(self.alphas[last_task_id][component_name].detach().clone()) for component_name in self.hnet_component_names
-        } if use_prior_alphas and last_task_id != -1 else {
-            component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names
-        }
+        if task_id not in self.alphas:
+            self.alphas[task_id] = {
+                component_name: nn.Parameter(self.alphas[last_task_id][component_name].detach().clone()) for component_name in self.hnet_component_names
+            } if use_prior_alphas and last_task_id != -1 else {
+                component_name: nn.Parameter(torch.tensor(1e-3)) for component_name in self.hnet_component_names
+            }
         self.seen_tasks.add(task_id)
         targets = {}
         fisher_est_map = {}
@@ -422,4 +423,9 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         for i, v in ckpt.items():
             out.__setattr__(i, v)
         out._HyperCEZAgent__memory_manager.ez_agent = out.ez_agent
+        seen_tasks = copy.deepcopy(out.seen_tasks)
+        out.cl_training_misc = {}
+        out.seen_tasks = set()
+        for i in seen_tasks:
+            out.add_task(i)
         return out
