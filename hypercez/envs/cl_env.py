@@ -143,9 +143,46 @@ class CLEnvLoader:
 
         self._envs = []
         self._env_mt_world = None
+        self._cw_task_names = None
+        self._cw_cont_env = None
+
+    def _is_cw(self) -> bool:
+        return self.cl_env in ("CW10", "CW20")
+
+    def _ensure_cw_task_names(self):
+        if self._cw_task_names is not None:
+            return
+        from continualworld.tasks import TASK_SEQS
+        if self.cl_env not in TASK_SEQS:
+            raise ValueError(f"Unknown continual world task sequence: {self.cl_env}")
+        self._cw_task_names = list(TASK_SEQS[self.cl_env])
 
     def add_task(self, task_id, render=False, replica=False):
         assert task_id <= len(self._envs)
+        if self._is_cw():
+            self._ensure_cw_task_names()
+            assert 0 <= task_id < len(self._cw_task_names)
+
+            from continualworld.envs import get_single_env, ContinualLearningEnv
+
+            env = get_single_env(
+                self._cw_task_names[task_id],
+                one_hot_idx=task_id,
+                one_hot_len=len(self._cw_task_names),
+                randomization="random_init_all",
+            )
+
+
+            if self.seed is not None:
+                env.reset(seed=self.seed)
+
+            if not replica:
+                self._envs.append(env)
+                self._cw_cont_env = None
+                # Keep a validated CW container while still exposing per-task envs to Trainer.
+                self._cw_cont_env = ContinualLearningEnv(self._envs, steps_per_env=1)
+                return self.get_env(task_id)
+            return env
         if self.cl_env == "lqr":
             env = LQR_2DCar(friction=0.5 * task_id)
         elif self.cl_env == "lqr10":
@@ -225,6 +262,16 @@ class CLEnvLoader:
             return env
 
     def get_env(self, task_id) -> gym.Env:
+        if self._is_cw():
+            self._ensure_cw_task_names()
+            assert len(self._envs) > task_id >= 0
+
+            if self._cw_cont_env is None:
+                from continualworld.envs import ContinualLearningEnv
+                self._cw_cont_env = ContinualLearningEnv(self._envs, steps_per_env=1)
+
+            return self._envs[task_id]
+
         if self.cl_env == "metaworld10":
             assert 10 > task_id >= 0
             self._env_mt_world.set_task(0)

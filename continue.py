@@ -18,7 +18,7 @@ def main():
     print(hparams.hnet_arch)
 
     hyper_cez_agent = HyperCEZDeltaAgent.load(
-        "./agents/half_cheetah/agent_t1_659990hypercez_all_agent_initSafe.pth",
+        "./agents/half_cheetah/agent_t2_59990hypercez_all_agent_initSafe.pth",
         map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu")
     )
     hyper_cez_agent.hparams = hparams
@@ -28,7 +28,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez_cont_t1_659990' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez_cont_t2_409990' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,

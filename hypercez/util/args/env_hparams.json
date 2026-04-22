@@ -585,5 +585,41 @@
     "pddm_beta": 0.6,
     "pddm_kappa": 50,
     "mag_noise": 1.0
+  },
+  "CW10": {
+    "env_type": "else",
+    "state_dim": 49,
+    "control_dim": 4,
+    "out_dim": 49,
+    "num_tasks": 10,
+    "max_iteration": 30000,
+    "init_rand_steps": 10000,
+    "dynamics_update_every": 10,
+    "dnn_out": "diff",
+    "normalize_xu": true,
+    "h_dims": [
+      256,
+      256
+    ],
+    "out_var": false,
+    "lr": 0.001,
+    "lr_steps": null,
+    "bs": 100,
+    "reg_lambda": 0.0001,
+    "train_dynamic_iters": 10000,
+    "eval_every": 5000,
+    "eval_env_run_every": 1500,
+    "run_eval_env_eps": 5,
+    "M": 400,
+    "control": "mpc-pddm",
+    "horizon": 7,
+    "propagation": "EP",
+    "reward_discount": 0.99,
+    "n_sim_steps": 5,
+    "n_sim_particles": 2000,
+    "num_cem_elites": 10,
+    "pddm_beta": 0.8,
+    "pddm_kappa": 20,
+    "mag_noise": 1
   }
 }

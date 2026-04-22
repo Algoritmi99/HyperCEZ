@@ -20,6 +20,12 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
+    @staticmethod
+    def _extract_observation(reset_result):
+        if isinstance(reset_result, tuple):
+            return reset_result[0]
+        return reset_result
+
     def train(self, evaluate=False, verbose=False, agent_name=""):
         print("Running Training sequence on", self.device)
         if not self.agent.training_mode:
@@ -33,7 +39,7 @@ class Trainer:
                 pbar.set_description("Collecting data")
                 pbar.set_postfix(task=task_id)
                 # random acting to collect data
-                x_t, _ = env.reset()
+                x_t = self._extract_observation(env.reset())
                 self.agent.reset(x_t)
                 while not self.agent.is_ready_for_training(task_id=task_id, pbar=pbar):
                     _, _, u = self.agent.act_init(x_t, task_id=task_id)
@@ -45,12 +51,12 @@ class Trainer:
 
                     x_t = x_tt
                     if terminated or truncated:
-                        x_t, _ = env.reset()
+                        x_t = self._extract_observation(env.reset())
                         self.agent.reset(x_t)
 
             # trial and error
             if not self.agent.done_training(task_id=task_id, pbar=pbar):
-                x_t, _ = env.reset()
+                x_t = self._extract_observation(env.reset())
                 self.agent.reset(x_t)
             it = 0
             eval_cnt = 0
@@ -73,7 +79,7 @@ class Trainer:
 
                 x_t = x_tt
                 if truncated or terminated:
-                    x_t, _ = env.reset()
+                    x_t = self._extract_observation(env.reset())
                     self.agent.reset(x_t)
 
                 if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate and not evaluated:
