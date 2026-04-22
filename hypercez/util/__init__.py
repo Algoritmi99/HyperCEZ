@@ -182,3 +182,8 @@ def np_non_imag(inp: ndarray | tuple):
     if isinstance(inp, tuple):
         return inp[0]
     return inp
+
+def extract_observation(reset_result):
+    if isinstance(reset_result, tuple):
+        return reset_result[0]
+    return reset_result

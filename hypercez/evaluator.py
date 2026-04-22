@@ -2,6 +2,7 @@ import copy
 
 from hypercez.agents.agent_base import Agent, ActType
 from hypercez.envs.cl_env import CLEnvLoader
+from hypercez.util import extract_observation
 
 
 class Evaluator:
@@ -27,7 +28,7 @@ class Evaluator:
                     pbar.set_postfix(task=task_id, refresh=False)
                     pbar.refresh()
                 env = env_loader.get_env(task_id)
-                x_t, _ = env.reset()
+                x_t = extract_observation(env.reset())
 
                 self.agent.reset(x_t)
                 done = False
