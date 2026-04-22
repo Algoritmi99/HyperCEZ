@@ -1,4 +1,5 @@
 import copy
+import os
 from enum import IntEnum
 
 import torch
@@ -66,6 +67,8 @@ class Agent:
         self.device = device
 
     def save(self, path):
+        if isinstance(path, (str, os.PathLike)):
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         ckpt = {copy.deepcopy(i): copy.deepcopy(v) for i, v in self.__dict__.items()}
         torch.save(ckpt, path)
 
