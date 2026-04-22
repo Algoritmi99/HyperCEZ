@@ -3,7 +3,7 @@ numpy~=2.4.4
 torch~=2.11.0
 opencv-python~=4.13.0.92
 torchrl~=0.11.1
-setuptools~=82.0.1
+setuptools<82
 Cython~=3.2.4
 PyYAML~=6.0.2
 matplotlib~=3.10.3
