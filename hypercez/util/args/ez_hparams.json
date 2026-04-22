@@ -334,7 +334,7 @@
       "training_steps": 50000,
       "offline_training_steps": 50000,
       "start_transitions": 2000,
-      "eval_n_episode": 5,
+      "eval_n_episode": 1,
       "eval_interval": 1000,
       "self_play_update_interval": 100,
       "reanalyze_update_interval": 200,
