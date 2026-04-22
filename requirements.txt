@@ -13,7 +13,7 @@ six~=1.17.0
 pyrr~=0.10.3
 robosuite~=1.5.1
 gymnasium[classic_control]
-h5py~=3.16.0
+h5py~=3.14.0
 gymnasium-robotics~=1.4.1
 kornia~=0.8.1
 tensorboard~=2.20.0
