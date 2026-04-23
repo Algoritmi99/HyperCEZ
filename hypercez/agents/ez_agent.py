@@ -87,6 +87,7 @@ class EZAgent(Agent):
         self.total_train_steps = None
         self.beta_schedule = None
         self.self_play_model = None
+        self.recent_reanalyze_model = None
         self.reanalyze_model = None
         self.latest_model = None
         self.pool_size = 1
@@ -496,11 +497,24 @@ class EZAgent(Agent):
         if self.agent_type == AgentType.ATARI:
             if self.hparams.mcts["use_gumbel"]:
                 r_values, r_policies, best_actions, _ = mcts.search(
-                    model, states.shape[0], states, values, policies, use_gumble_noise=False, verbose=0, model_state=model_state
+                    model,
+                    states.shape[0],
+                    states,
+                    values,
+                    policies,
+                    use_gumble_noise= decision_model == DecisionModel.SELF_PLAY,
+                    verbose=0,
+                    model_state=model_state
                 )
             else:
                 r_values, r_policies, best_actions, _ = mcts.search_ori_mcts(
-                    model, states.shape[0], states, values, policies, use_noise=False, model_state=model_state
+                    model,
+                    states.shape[0],
+                    states,
+                    values,
+                    policies,
+                    use_noise = decision_model == DecisionModel.SELF_PLAY,
+                    model_state=model_state
                 )
         else:
             r_values, r_policies, best_actions, _, _, _ = mcts.search_continuous(
@@ -511,7 +525,7 @@ class EZAgent(Agent):
                 policies,
                 use_gumble_noise=False,
                 verbose=0,
-                add_noise=False,
+                add_noise = decision_model == DecisionModel.SELF_PLAY,
                 model_state=model_state
             )
 
@@ -597,6 +611,7 @@ class EZAgent(Agent):
 
         self.self_play_model = copy.deepcopy(self.model)
         self.reanalyze_model = copy.deepcopy(self.model)
+        self.recent_reanalyze_model = copy.deepcopy(self.model)
         self.latest_model = copy.deepcopy(self.model)
         self.batch_storage = FIFOQueue()
         self.model.train()
@@ -1376,7 +1391,8 @@ class EZAgent(Agent):
             self.self_play_model = copy.deepcopy(self.model)
 
         if self.trained_steps % self.hparams.train["reanalyze_update_interval"] == 0:
-            self.reanalyze_model = copy.deepcopy(self.model)
+            self.reanalyze_model = copy.deepcopy(self.recent_reanalyze_model)
+            self.recent_reanalyze_model = copy.deepcopy(self.model)
 
         weighted_loss, log_data = self.calc_loss(
             self.model,

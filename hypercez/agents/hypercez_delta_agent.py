@@ -181,6 +181,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 self.hnet_map_latest = copy.deepcopy(self.hnet_map)
                 self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
                 self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+                self.recent_hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
 
             # Collect Fisher estimates for the reg computation.
             fisher_ests = None
@@ -273,9 +274,10 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
             self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
 
         if self._HyperCEZAgent__memory_manager.get_trained_steps() % self.hparams.train["reanalyze_update_interval"] == 0:
-            self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
-            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
-
+            self.hnet_map_reanalyze = copy.deepcopy(self.recent_hnet_map_reanalyze)
+            self.recent_hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.recent_reanalyze_model)
+            self.ez_agent.recent_reanalyze_model = copy.deepcopy(self.ez_agent.model)
 
         weighted_loss, log_data = self.ez_agent.calc_loss(
             self.ez_agent.model,

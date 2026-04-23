@@ -10,9 +10,9 @@ from hypercez.util.plotter import Plotter
 
 
 def main():
-    # env_name = "half_cheetah"
+    env_name = "half_cheetah"
     # env_name = "pendulum"
-    env_name = "CW10"
+    # env_name = "CW10"
     hparams = Hparams(env_name)
 
     hparams.add_ez_hparams(2)
@@ -46,7 +46,7 @@ def main():
         cl_env_loader.add_task(i)
 
     plotter = Plotter()
-    plotter.enable_tensorboard(log_dir='runs/hypercez' + "_" + env_name)
+    plotter.enable_tensorboard(log_dir='runs/hypercez_hope' + "_" + env_name)
 
     trainer = Trainer(
         hyper_cez_agent,

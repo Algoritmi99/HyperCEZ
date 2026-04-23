@@ -22,6 +22,7 @@ class HyperCEZAgent(Agent):
         self.hnet_map = {}
         self.hnet_map_self_play = None
         self.hnet_map_latest = None
+        self.recent_hnet_map_reanalyze = None
         self.hnet_map_reanalyze = None
         self.hnet_component_names = list(hnet_component_names)
         if len(self.hnet_component_names) == 1 and self.hnet_component_names[0] == "all":
@@ -182,7 +183,7 @@ class HyperCEZAgent(Agent):
         if task_id not in self.seen_tasks:
             self.add_task(task_id)
         state = self.make_ez_state(task_id, decision_model=decision_model)
-        return self.ez_agent.act(obs, task_id=task_id, act_type=act_type, model_state=state)
+        return self.ez_agent.act(obs, task_id=task_id, act_type=act_type, model_state=state, decision_model = decision_model)
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         return self.act(obs, task_id, act_type)
@@ -223,6 +224,7 @@ class HyperCEZAgent(Agent):
                 self.hnet_map_latest = copy.deepcopy(self.hnet_map)
                 self.hnet_map_self_play = copy.deepcopy(self.hnet_map)
                 self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+                self.recent_hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
 
             # Collect Fisher estimates for the reg computation.
             fisher_ests = None
@@ -308,9 +310,10 @@ class HyperCEZAgent(Agent):
             self.ez_agent.self_play_model = copy.deepcopy(self.ez_agent.model)
 
         if self.__memory_manager.get_trained_steps() % self.hparams.train["reanalyze_update_interval"] == 0:
-            self.hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
-            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.model)
-
+            self.hnet_map_reanalyze = copy.deepcopy(self.recent_hnet_map_reanalyze)
+            self.recent_hnet_map_reanalyze = copy.deepcopy(self.hnet_map)
+            self.ez_agent.reanalyze_model = copy.deepcopy(self.ez_agent.recent_reanalyze_model)
+            self.ez_agent.recent_reanalyze_model = copy.deepcopy(self.ez_agent.model)
 
         weighted_loss, log_data = self.ez_agent.calc_loss(
             self.ez_agent.model,
