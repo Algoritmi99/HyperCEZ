@@ -419,6 +419,14 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
     @classmethod
     def load(cls, path, map_location='cpu', verbose=False):
         ckpt = torch.load(path, map_location=map_location, weights_only=False)
+        if isinstance(ckpt, dict) and ckpt.get("__hypercez_checkpoint__", False):
+            out = ckpt["agent"]
+            rng_state = ckpt.get("rng_state")
+            if rng_state is not None:
+                cls._restore_rng_state(rng_state)
+            if verbose:
+                print(f"Loaded new-format checkpoint for {ckpt.get('agent_class', type(out).__name__)}")
+            return out
         if verbose:
             print([(i, v) for i, v in ckpt.items()])
         out = cls(ckpt["hparams"], None, *ckpt["hnet_component_names"])

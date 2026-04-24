@@ -1656,6 +1656,14 @@ class EZAgent(Agent):
         assert path is not None or ckpt is not None, "Either path or ckpt must be specified."
         if path is not None:
             ckpt = torch.load(path, map_location=map_location, weights_only=False)
+        if isinstance(ckpt, dict) and ckpt.get("__hypercez_checkpoint__", False):
+            out = ckpt["agent"]
+            rng_state = ckpt.get("rng_state")
+            if rng_state is not None:
+                cls._restore_rng_state(rng_state)
+            if verbose:
+                print(f"Loaded new-format checkpoint for {ckpt.get('agent_class', type(out).__name__)}")
+            return out
         if verbose:
             print([(i, v) for i, v in ckpt.items()])
         out = cls(ckpt["hparams"], ckpt["agent_type"])
