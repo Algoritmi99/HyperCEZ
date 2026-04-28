@@ -250,4 +250,4 @@ class HyperCRLAgent(Agent):
         self.collector.add(x_t, u_t, reward, x_tt, task_id)
 
     def reset(self, obs):
-        pass
+        self.agent.reset()
