@@ -47,6 +47,8 @@ class Hparams:
         ]:
             setattr(self, attr, hnet_hparams["un-chunked"][attr])
 
+        setattr(self, 'hnet_type', 'un-chunked_hnet')
+
         forgettable_envs = ["door_pose", "pusher_slide", "half_cheetah"]
         setattr(self, 'beta', 1 if self.env in forgettable_envs else 0.5)
 
@@ -65,6 +67,8 @@ class Hparams:
             "backprop_dt", "use_sgd_change", "ewc_weight_importance", "n_fisher"
         ]:
             setattr(self, attr, hnet_hparams["chunked"][attr])
+
+        setattr(self, 'hnet_type', 'chunked_hnet')
 
     def add_ez_hparams(self, alt_id: int):
         with open('./hypercez/util/args/ez_hparams.json') as f:

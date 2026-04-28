@@ -135,6 +135,67 @@ ROTATE_ENV = [
 ]
 SLIDE_ENV = [0.001, 0.0005, 0.002, 0.0026, 0.005]
 
+class EnvSpecs:
+    unit = {
+        "pusher": ["m", "m", "m", "m", "m", "m", "m", "m", "m", "m"],
+        "door":["m", "m", "m", "rad"],
+        "door_pose": ["m", "m", "m", "", "", "", "", "m",
+         "", "", "", "", "", "", "", "", "", "", "", "",
+         "", "", "", "","rad", "rad"]
+    }
+    names = {
+        "pusher": ["x", "y", "x_c1", "y_c1", "x_c2", "y_c2",
+        "x_c3", "y_c3", "x_c4", "y_c4"],
+        "door": ["x", "y", "z", "joint_pos"],
+        "door_pose":["h_X_ee", "h_Y_ee", "h_Z_ee", "h_Qw_ee", "h_Qx_ee",
+            "h_Qy_ee", "h_Qz_ee","grip", "", "", "", "", "", "", "", "",
+            "", "", "", "", "", "", "knob_vel", "door_vel", "knob_ang", "door_ang"]
+    }
+
+    a_dims = {
+        "pusher": 2,
+        'pusher_rot': 2,
+        "pusher_slide": 2,
+        "reacher": 2,
+        "half_cheetah_body": 6,
+        "cartpole": 1,
+        "cartpole_bin": 1,
+        "inverted_pendulum": 1,
+        "lqr": 4,
+        "lqr10": 20,
+        "door": 3,
+        "door_pose": 7,
+    }
+
+    x_dims = {
+        "pusher": 10,
+        "pusher_rot": 20,
+        "pusher_slide": 18,
+        "reacher": 11,
+        "half_cheetah_body": 18,
+        "cartpole": 4,
+        "cartpole_bin": 4,
+        "inverted_pendulum": 4,
+        "lqr": 4,
+        "lqr10": 20,
+        "door": 4,
+        "door_pose": 10,
+    }
+
+    @classmethod
+    def get_dim_unit(cls, env):
+        if env in cls.unit:
+            return cls.unit[env]
+        else:
+            return [" " for i in range(cls.x_dims[env])]
+
+    @classmethod
+    def get_dim_name(cls, env):
+        if env in cls.names:
+            return cls.names[env]
+        else:
+            return [f"Dim {i+1}" for i in range(cls.x_dims[env])]
+
 
 class CLEnvLoader:
     def __init__(self, env, seed=None):

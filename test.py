@@ -43,6 +43,8 @@ def main():
     hparams.add_ez_hparams(2)
     hparams.add_hnet_hparams()
 
+    print(hparams.max_iteration)
+
     # Keep this smoke test short.
     hparams.num_tasks = 1
     hparams.train["start_transitions"] = 32

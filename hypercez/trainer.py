@@ -23,6 +23,7 @@ class Trainer:
 
     def train(self, evaluate=False, verbose=False, agent_name=""):
         print("Running Training sequence on", self.device)
+        time.sleep(0.5)
         if not self.agent.training_mode:
             self.agent.train()
         train_cnt = 0

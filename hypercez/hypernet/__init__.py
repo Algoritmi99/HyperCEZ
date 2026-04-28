@@ -1,5 +1,3 @@
-from enum import IntEnum
-
 from torch import nn
 
 from hypercez import Hparams

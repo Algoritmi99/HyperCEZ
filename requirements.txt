@@ -19,3 +19,4 @@ kornia~=0.8.1
 tensorboard~=2.20.0
 tensorflow[and-cuda]
 numba~=0.65.0
+recordtype

@@ -1,13 +1,12 @@
-import numpy as np
 import torch
+import numpy as np
 
-from hypercez.agents.agent_base import Agent
-from hypercez.agents.control.cem import CEM
-from hypercez.agents.control.grad import GradPlan
-from hypercez.agents.control.lqr import LQR
-from hypercez.agents.control.manual import Manual
-from hypercez.agents.control.mppi import MPPI, PDDM
-
+from .cem import CEM
+from .mppi import MPPI, PDDM
+from .lqr import LQR
+from .grad import GradPlan
+from .manual import Manual
+from .reward import GTCost
 
 def quat_mul(q0, q1):
     assert q0.shape == q1.shape
@@ -34,9 +33,31 @@ def quat_mul(q0, q1):
     return q
 
 
+class Agent():
+    def __init__(self, hparams):
+        self.model_name = hparams.hnet_type
+        self.env_name = hparams.env
+        self.control_dim = hparams.control_dim
+        self.state_dim = hparams.state_dim
+        self.dnn_out = hparams.dnn_out
+        self.reward_discount = hparams.reward_discount
+        self._cost = GTCost(self.env_name, self.state_dim, self.control_dim,
+            self.reward_discount, hparams.gpuid)
+
+    def act(self, state):
+        pass
+
+class RandomAgent(Agent):
+    def __init__(self, hparams):
+        super(RandomAgent, self).__init__(hparams)
+    
+    def act(self, state, task_id=None):
+        return np.random.randn(self.control_dim, 1)
+
 class MPC(Agent):
     def __init__(self, hparams, model, envs=None, collector=None, likelihood=None, hnet=None):
         super(MPC, self).__init__(hparams)
+        self._cached_weights = None
         self.model = model
         self.hnet = hnet
         self.envs = envs
@@ -51,40 +72,40 @@ class MPC(Agent):
             self.reset_hnet()
 
         if hparams.control == "mpc-cem":
-            self.control = CEM(self._dynamics, self._cost, hparams.state_dim, hparams.control_dim,
-                               num_samples=hparams.n_sim_particles,
-                               num_elite=hparams.num_cem_elites,
-                               num_iterations=hparams.n_sim_steps,
-                               horizon=hparams.horizon,
-                               device=hparams.gpuid,
-                               u_min=None,
-                               u_max=None,
-                               choose_best=True,
-                               init_cov_diag=hparams.mag_noise)
+            self.control = CEM(self._dynamics, self._cost, hparams.state_dim, hparams.control_dim, 
+                num_samples=hparams.n_sim_particles,
+                num_elite=hparams.num_cem_elites,
+                num_iterations=hparams.n_sim_steps,
+                horizon=hparams.horizon,
+                device=hparams.gpuid,
+                u_min=None,
+                u_max=None,
+                choose_best=True,
+                init_cov_diag=hparams.mag_noise)
         elif hparams.control == "mpc-mppi":
             noise_sigma = torch.eye(hparams.control_dim, device=hparams.gpuid, dtype=torch.float32) \
-                          * hparams.mag_noise
-            self.control = MPPI(self._dynamics, self._cost, hparams.state_dim, noise_sigma,
-                                num_samples=hparams.n_sim_particles,
-                                num_iter=hparams.n_sim_steps,
-                                horizon=hparams.horizon,
-                                lambda_=1 / hparams.pddm_kappa,
-                                device=hparams.gpuid,
-                                u_min=None,
-                                u_max=None)
+                * hparams.mag_noise
+            self.control = MPPI(self._dynamics, self._cost, hparams.state_dim, noise_sigma, 
+                num_samples=hparams.n_sim_particles,
+                num_iter=hparams.n_sim_steps,
+                horizon=hparams.horizon,
+                lambda_=1/hparams.pddm_kappa,
+                device=hparams.gpuid,
+                u_min=None,
+                u_max=None)
         elif hparams.control == "mpc-pddm":
             self.control = PDDM(self._dynamics, self._cost, hparams.state_dim, hparams.control_dim,
-                                hparams.horizon, hparams.n_sim_particles, hparams.pddm_beta,
-                                hparams.pddm_kappa, hparams.mag_noise, hparams.gpuid)
+                hparams.horizon, hparams.n_sim_particles, hparams.pddm_beta,
+                hparams.pddm_kappa, hparams.mag_noise, hparams.gpuid)
         elif hparams.control == "mpc-grad":
             self.control = GradPlan(self._dynamics, self._cost, hparams.state_dim, hparams.control_dim,
-                                    hparams.n_sim_particles, hparams.n_sim_steps, hparams.horizon, hparams.gpuid)
+                hparams.n_sim_particles, hparams.n_sim_steps, hparams.horizon, hparams.gpuid)
         elif hparams.control == 'mpc-lqr':
             self.control = LQR(hparams.state_dim, hparams.control_dim, hparams.horizon)
         elif hparams.control == "manual":
             self.control = Manual(hparams.env, hparams.state_dim, hparams.control_dim,
-                                  hparams.horizon, self._dynamics, hparams.gpuid)
-
+                hparams.horizon, self._dynamics, hparams.gpuid)
+    
     def cache_hnet(self, task_id):
         weights = self.hnet(task_id)
         weights = [w.detach() for w in weights]
@@ -113,10 +134,10 @@ class MPC(Agent):
         elif self.env_name == "door":
             x = torch.cat((x[:, 0:-1], torch.cos(x[:, -1:]), torch.sin(x[:, -1:])), dim=-1)
         elif self.env_name == "door_pose":
-            x = torch.cat((x[:, 0:-2], torch.cos(x[:, -2:-1]), torch.sin(x[:, -2:-1]),
-                           torch.cos(x[:, -1:]), torch.sin(x[:, -1:])), dim=-1)
+            x = torch.cat((x[:, 0:-2], torch.cos(x[:, -2:-1]), torch.sin(x[:, -2:-1]), 
+                    torch.cos(x[:, -1:]), torch.sin(x[:, -1:])), dim=-1)
         # FIXME: REMOVE THIS (now DEBUG ONLY)
-        if self.gt_dynamic:
+        if self.gt_dynamic: 
             if self.env_name == "pendulum":
                 th = torch.atan2(x[:, 1], x[:, 0]).view(-1, 1)
                 thdot = x[:, 2].view(-1, 1)
@@ -139,18 +160,18 @@ class MPC(Agent):
         if self.normalize_xu:
             x = (x - self.x_mu) / self.x_std
             u = (u - self.a_mu) / self.a_std
-
+         
         if self.model_name in ['single', 'finetune', 'coreset', 'pnn', 'ewc', 'si', 'multitask']:
             xx = self.model(x, u, task_id)
 
-        elif self.model_name.startswith("hnet") or self.model_name == "chunked_hnet":
+        elif self.model_name.startswith("hnet") or self.model_name == "chunked_hnet" or self.model_name == "un-chunked_hnet":
             weights = self.hnet(task_id) if self._cached_weights is None else self._cached_weights
             xu = torch.cat((x, u), dim=-1)
             xx = self.model.forward(xu, weights)
 
         # For probablistic output, select the mean
         if self.out_var:
-            xx, _ = torch.split(xx, xx.size(-1) // 2, dim=-1)
+            xx, _ = torch.split(xx, xx.size(-1)//2, dim=-1)
 
         # output conversion Steps
         # (deprecated) Un-normalize output (typically i'm not normalizing output)
@@ -162,7 +183,7 @@ class MPC(Agent):
             xx = torch.cat((xx[:, 0:1], xcopy[:, 1:] + xx[:, 1:]), dim=-1)
         elif self.env_name == "door_pose" and self.dnn_out == "diff":
             xx = torch.cat((xcopy[:, 0:3] + xx[:, 0:3], quat_mul(xcopy[:, 3:7], xx[:, 3:7]),
-                            xcopy[:, 7:] + xx[:, 7:]), dim=-1)
+                xcopy[:, 7:] + xx[:, 7:]), dim=-1)
         elif self.dnn_out == "diff":
             xx = xcopy + xx
 
@@ -170,8 +191,8 @@ class MPC(Agent):
             print((xx_gt - xx).mean(dim=0))
             return xx_gt
         return xx
-
-    def reset(self, obs):
+    
+    def reset(self):
         self.control.reset()
 
     def act(self, state, task_id=None, first_action=True):
@@ -182,3 +203,26 @@ class MPC(Agent):
         with torch.no_grad():
             cmd = self.control.command(state, task_id, first_action)
         return cmd
+
+class RollOut():
+    def __init__(self, hparams, model, collector):
+        self.model = model
+        self.collector = collector
+
+        self.n_samples = hparams.n_sim_particles
+        self.gpuid = hparams.gpuid
+
+        self.x_dim = hparams.state_dim
+        self.a_dim = hparams.control_dim
+        self.horizon = hparams.horizon
+        self.propagation = hparams.propagation
+        self.dnn_out = hparams.dnn_out
+
+    def predict(self, x_t, actions, task_id):
+        """
+        Multi-step forward, deprecate this
+        """
+        raise NotImplementedError
+    
+    def plot_rollout(self, env, x_t, actions, task_id):
+        raise NotImplementedError
