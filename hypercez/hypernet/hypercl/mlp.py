@@ -39,6 +39,12 @@ from .utils.batchnorm_layer import BatchNormLayer
 from .utils.context_mod_layer import ContextModLayer
 from .utils.torch_utils import init_params
 
+
+def _identity_module(module):
+    """Picklable identity wrapper used when spectral norm is disabled."""
+    return module
+
+
 class MLP(nn.Module, MainNetInterface):
     """Implementation of a Multi-Layer Perceptron (MLP).
 
@@ -229,7 +235,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         if use_spectral_norm:
             self._spec_norm = nn.utils.spectral_norm
         else:
-            self._spec_norm = lambda x : x # identity
+            self._spec_norm = _identity_module
 
         self._param_shapes = []
         self._weights = None if no_weights and context_mod_no_weights \
