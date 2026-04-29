@@ -47,6 +47,53 @@ class Agent():
     def act(self, state):
         pass
 
+    def to(self, device):
+        device = torch.device(device)
+        self._move_to_device(self, device, visited=set())
+        return self
+
+    def _move_to_device(self, obj, device, visited):
+        obj_id = id(obj)
+        if obj_id in visited:
+            return obj
+        visited.add(obj_id)
+
+        if torch.is_tensor(obj):
+            return obj.to(device)
+
+        if isinstance(obj, torch.nn.Module):
+            obj.to(device)
+            return obj
+
+        if isinstance(obj, list):
+            for i, item in enumerate(obj):
+                obj[i] = self._move_to_device(item, device, visited)
+            return obj
+
+        if isinstance(obj, tuple):
+            return tuple(self._move_to_device(item, device, visited) for item in obj)
+
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                obj[k] = self._move_to_device(v, device, visited)
+            return obj
+
+        if hasattr(obj, "__dict__"):
+            if hasattr(obj, "gpuid"):
+                obj.gpuid = device
+            if hasattr(obj, "device"):
+                obj.device = device
+            if hasattr(obj, "d"):
+                obj.d = device
+
+            for name, value in vars(obj).items():
+                moved = self._move_to_device(value, device, visited)
+                if moved is not value:
+                    setattr(obj, name, moved)
+            return obj
+
+        return obj
+
 class RandomAgent(Agent):
     def __init__(self, hparams):
         super(RandomAgent, self).__init__(hparams)
@@ -111,15 +158,42 @@ class MPC(Agent):
         weights = [w.detach() for w in weights]
         self._cached_weights = weights
 
+    def to(self, device):
+        super().to(device)
+        self.gpuid = torch.device(device)
+        # Reset controller tensors that are re-created from device fields.
+        self.reset()
+        # Cached hypernet weights may belong to the old device.
+        self.reset_hnet()
+        return self
+
     def reset_hnet(self):
         self._cached_weights = None
 
     def cache_state_norm(self, task_id):
-        # normalize the state
-        if self.normalize_xu:
+        # Default to identity normalization so planning can proceed even when
+        # stats are not available yet for a task (e.g. early eval on unseen task).
+        self.x_mu = torch.zeros(self.state_dim, device=self.gpuid, dtype=torch.float32)
+        self.x_std = torch.ones(self.state_dim, device=self.gpuid, dtype=torch.float32)
+        self.a_mu = torch.zeros(self.control_dim, device=self.gpuid, dtype=torch.float32)
+        self.a_std = torch.ones(self.control_dim, device=self.gpuid, dtype=torch.float32)
+
+        if not self.normalize_xu:
+            return
+
+        try:
             x_mu, x_std, a_mu, a_std = self.collector.norm(task_id)
-            self.x_mu, self.x_std = x_mu.to(self.gpuid), x_std.to(self.gpuid)
-            self.a_mu, self.a_std = a_mu.to(self.gpuid), a_std.to(self.gpuid)
+        except (KeyError, TypeError):
+            # Keep identity normalization fallback.
+            return
+
+        if x_mu is None or x_std is None or a_mu is None or a_std is None:
+            return
+        if torch.isnan(x_mu).any() or torch.isnan(x_std).any() or torch.isnan(a_mu).any() or torch.isnan(a_std).any():
+            return
+
+        self.x_mu, self.x_std = x_mu.to(self.gpuid), x_std.to(self.gpuid)
+        self.a_mu, self.a_std = a_mu.to(self.gpuid), a_std.to(self.gpuid)
 
     def _dynamics(self, x, u, task_id):
         x = x.view(-1, self.state_dim)

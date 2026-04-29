@@ -24,11 +24,13 @@ class HyperCRLAgent(Agent):
         self.learned_steps = {}
         self.trainer_miscs = {}
         self.total_training_steps = self.hparams.max_iteration // self.hparams.dynamics_update_every
+        self.to(self.device)
 
     def to(self, device=torch.device("cpu")):
         super().to(device)
         self.mnet.to(device)
         self.hnet.to(device)
+        self.agent.to(device)
 
     def act(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
         if task_id not in self.seen_tasks:
