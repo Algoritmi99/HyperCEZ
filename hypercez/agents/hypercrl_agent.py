@@ -39,6 +39,9 @@ class HyperCRLAgent(Agent):
         return None, None, self.agent.act(obs, task_id=task_id).detach().cpu().numpy()
 
     def act_init(self, obs, task_id=None, act_type: ActType = ActType.INITIAL):
+        if task_id not in self.seen_tasks:
+            self.add_task(task_id)
+            self.learned_steps[task_id] = 0
         return None, None, self.rand_agent.act(obs, task_id=task_id)
 
     def is_ready_for_training(self, task_id=None, pbar=None):
