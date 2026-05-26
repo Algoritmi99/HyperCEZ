@@ -128,10 +128,10 @@ class MPC(Agent):
                 u_min=None,
                 u_max=None,
                 choose_best=True,
-                init_cov_diag=hparams.mag_noise)
+                init_cov_diag=hparams.mag_noise if hasattr(hparams, "mag_noise") else 1)
         elif hparams.control == "mpc-mppi":
             noise_sigma = torch.eye(hparams.control_dim, device=hparams.gpuid, dtype=torch.float32) \
-                * hparams.mag_noise
+                * (hparams.mag_noise if hasattr(hparams, "mag_noise") else 1)
             self.control = MPPI(self._dynamics, self._cost, hparams.state_dim, noise_sigma, 
                 num_samples=hparams.n_sim_particles,
                 num_iter=hparams.n_sim_steps,

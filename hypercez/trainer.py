@@ -21,7 +21,7 @@ class Trainer:
         self.agent.to(self.device)
         self.plotter = plotter
 
-    def train(self, evaluate=False, verbose=False, agent_name=""):
+    def train(self, evaluate=False, verbose=False, agent_name="", save_cp=False, save_cp_on_eval_only=True):
         print("Running Training sequence on", self.device)
         time.sleep(0.5)
         if not self.agent.training_mode:
@@ -78,17 +78,17 @@ class Trainer:
                     x_t = extract_observation(env.reset())
                     self.agent.reset(x_t)
 
-                if train_cnt % self.hparams.train["eval_interval"] == 0 and evaluate and not evaluated:
-                    evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
-                    evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
-                    if eval_cnt % 5 == 0:
+                if train_cnt % self.hparams.train["eval_interval"] == 0:
+                    if evaluate and not evaluated:
+                        evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
+                        evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
+                        evaluated = True
+                    if eval_cnt % 5 == 0 and save_cp and (save_cp_on_eval_only and evaluated or not save_cp_on_eval_only):
                         self.agent.save(
                             "./agents/" + self.hparams.env + "/agent_t" + str(task_id) + "_" + str(it) + agent_name + ".pth"
                         )
-                        self.plotter.save_raw_data()
+                    self.plotter.save_raw_data()
                     eval_cnt += 1
-                    evaluated = True
-
                 it += 1
         pbar.close()
 

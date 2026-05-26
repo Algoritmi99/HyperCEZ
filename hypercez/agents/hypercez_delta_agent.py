@@ -94,6 +94,10 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         self.ez_agent.to(device)
         for hnet_name in self.hnet_component_names:
             self.hnet_map[hnet_name].to(device)
+            self.hnet_map_self_play[hnet_name].to(device) if self.hnet_map_self_play is not None else None
+            self.hnet_map_reanalyze[hnet_name].to(device) if self.hnet_map_reanalyze is not None else None
+            self.recent_hnet_map_reanalyze[hnet_name].to(device) if self.recent_hnet_map_reanalyze is not None else None
+            self.hnet_map_latest[hnet_name].to(device) if self.hnet_map_latest is not None else None
             for t_id in self.seen_tasks:
                 with torch.no_grad():
                     self.alphas[t_id][hnet_name].data = self.alphas[t_id][hnet_name].data.to(device)
@@ -426,6 +430,7 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
                 cls._restore_rng_state(rng_state)
             if verbose:
                 print(f"Loaded new-format checkpoint for {ckpt.get('agent_class', type(out).__name__)}")
+            out.ez_agent.optimizer.param_groups[0]["params"] = list(out.ez_agent.model.parameters())
             return out
         if verbose:
             print([(i, v) for i, v in ckpt.items()])
@@ -438,4 +443,5 @@ class HyperCEZDeltaAgent(HyperCEZAgent):
         out.seen_tasks = set()
         for i in seen_tasks:
             out.add_task(i)
+        out.ez_agent.optimizer.param_groups[0]["params"] = list(out.ez_agent.model.parameters())
         return out

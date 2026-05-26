@@ -38,8 +38,10 @@ def main():
         # "all"
         # "default"
     )
-
     hyper_cez_agent.init_model()
+
+    # hyper_cez_agent = HyperCEZDeltaAgent.load("./agents/CW10/agent_t0_959990hypercez_all_agent_initSafe.pth")
+    # hyper_cez_agent.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
     cl_env_loader = CLEnvLoader(hparams.env, seed=42)
     for i in range(hparams.num_tasks):
