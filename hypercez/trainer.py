@@ -82,12 +82,12 @@ class Trainer:
                     if evaluate and not evaluated:
                         evaluator = Evaluator(self.agent, self.hparams, plotter=self.plotter)
                         evaluator.evaluate(self.hparams.train["eval_n_episode"], pbar=pbar)
+                        self.plotter.save_raw_data()
                         evaluated = True
                     if eval_cnt % 5 == 0 and save_cp and (save_cp_on_eval_only and evaluated or not save_cp_on_eval_only):
                         self.agent.save(
                             "./agents/" + self.hparams.env + "/agent_t" + str(task_id) + "_" + str(it) + agent_name + ".pth"
                         )
-                    self.plotter.save_raw_data()
                     eval_cnt += 1
                 it += 1
         pbar.close()
