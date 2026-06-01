@@ -5,7 +5,7 @@ from hypercez.util.datautil import DataCollector
 
 
 class HyperCEZDataManager:
-    def __init__(self, ez_agent: EZAgent):
+    def __init__(self, ez_agent: EZAgent, keepcrl_data=False):
         self.ez_agent = ez_agent
         self.collector_map = {}
         self.traj_pool_map = {}
@@ -16,6 +16,7 @@ class HyperCEZDataManager:
         self.beta_schedule_map = {}
         self.hyper_crl_collector = DataCollector(ez_agent.hparams)
         self.total_trained_steps = 0
+        self.keepcrl_data = keepcrl_data
 
     def update_mem_maps(self):
         assert hasattr(self.ez_agent, "mem_id")
@@ -37,7 +38,7 @@ class HyperCEZDataManager:
         self.ez_agent.trained_steps = self.trained_steps_map[task_id]
         self.ez_agent.mem_id = task_id
 
-    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False):
+    def collect(self, x_t, u_t, reward, x_tt, task_id, done=False, delete_old_memory=True):
         if self.ez_agent.mem_id == task_id:
             # No collection or memory change needed
             self.ez_agent.collect(x_t, u_t, reward, x_tt, task_id, done=done)
@@ -54,9 +55,14 @@ class HyperCEZDataManager:
 
             self.ez_agent.collect(x_t, u_t, reward, x_tt, task_id, done=done)
 
-        self.hyper_crl_collector.add(x_t, u_t, reward, x_tt, task_id)
+        if self.keepcrl_data:
+            self.hyper_crl_collector.add(x_t, u_t, reward, x_tt, task_id)
         self.ez_agent.mem_id = task_id
         self.update_mem_maps()
+
+        for existing_id in list(self.collector_map.keys()):
+            if existing_id < task_id:
+                self.delete_old_memory(existing_id)
 
     def make_batch(self, task_id, reanalyze_state):
         assert hasattr(self.ez_agent, "mem_id")
@@ -117,3 +123,12 @@ class HyperCEZDataManager:
         if task_id not in self.trained_steps_map:
             self.trained_steps_map[task_id] = 0
         return self.trained_steps_map[task_id]
+
+    def delete_old_memory(self, task_id):
+        self.collector_map.pop(task_id)
+        self.traj_pool_map.pop(task_id)
+        self.replay_buffer_map.pop(task_id)
+        self.batch_storage_map.pop(task_id)
+        self.prev_traj_map.pop(task_id)
+        self.beta_schedule_map.pop(task_id)
+        self.trained_steps_map.pop(task_id)
